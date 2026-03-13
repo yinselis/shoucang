@@ -1,0 +1,11 @@
+{
+    "display_name": "全局聊天收藏夹 (Pro)",
+    "loading_order": 50,
+    "js": "index.js",
+    "css": "style.css",
+    "author": "Your Name",
+    "version": "2.0.0",
+    "homePage": "https://github.com/你的github用户名/你的仓库名",
+    "auto_update": true,
+    "minimum_client_version": "1.11.0"
+}
