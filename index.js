@@ -1,21 +1,19 @@
 const context = SillyTavern.getContext();
-const { eventSource, event_types, extensionSettings, SlashCommandParser, SlashCommand, ARGUMENT_TYPE } = context;
+const { eventSource, event_types, extensionSettings, SlashCommandParser, SlashCommand } = context;
 
 const MODULE_NAME = 'global_bookmarks_pro';
 const defaultSettings = {
     showFloatingButton: true,
     filterTags: 'think',
-    removeBeforeClosing: false,
+    removeBeforeClosing: true, // 默认开启暴力过滤
     bookmarks:[]
 };
 
-// 工具函数：转义HTML
 function escapeHtml(text) {
     if (text === null || text === undefined) return "";
     return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
-// 核心功能：增强版标签过滤
 function applyTagFilter(text) {
     if (!text) return text;
     let result = text;
@@ -24,19 +22,14 @@ function applyTagFilter(text) {
     
     tags.forEach(tag => {
         if (settings.removeBeforeClosing) {
-            // 暴力模式：直接寻找 </tag>，把前面的全删了
             const closingTag = `</${tag}>`;
             const closingIndex = result.toLowerCase().indexOf(closingTag.toLowerCase());
             if (closingIndex !== -1) {
                 result = result.substring(closingIndex + closingTag.length);
-            } else {
-                // 如果没有找到闭合标签，但包含 <tag>，说明可能还没生成完，全过滤掉
-                if(result.toLowerCase().includes(`<${tag}`.toLowerCase())) {
-                    result = ""; 
-                }
+            } else if (result.toLowerCase().includes(`<${tag}`.toLowerCase())) {
+                result = ""; 
             }
         } else {
-            // 普通模式：去除 <tag>...</tag> 之间的内容
             try {
                 const regex = new RegExp(`<${tag}[^>]*>[\\s\\S]*?<\\/${tag}>`, 'gi');
                 result = result.replace(regex, '');
@@ -46,7 +39,6 @@ function applyTagFilter(text) {
     return result.trim();
 }
 
-// 初始化及数据迁移
 function loadSettings() {
     if (!extensionSettings[MODULE_NAME]) extensionSettings[MODULE_NAME] = {};
     for (const key in defaultSettings) {
@@ -54,26 +46,14 @@ function loadSettings() {
             extensionSettings[MODULE_NAME][key] = defaultSettings[key];
         }
     }
-
-    // 自动从旧版 STScript 迁移数据
-    try {
-        const oldBookmarks = context.variables.global.get('bookmarks');
-        if (oldBookmarks && Array.isArray(oldBookmarks) && oldBookmarks.length > 0 && extensionSettings[MODULE_NAME].bookmarks.length === 0) {
-            extensionSettings[MODULE_NAME].bookmarks = oldBookmarks;
-            context.saveSettingsDebounced();
-            toastr.success("🌟 成功从旧版脚本迁移了你的收藏夹数据！");
-        }
-    } catch (e) {}
 }
 
-// 快速收藏最新功能
 async function quickSaveLatest() {
     try {
-        const lastMsgs = context.chat.slice(-1); // 获取最新一条
+        const lastMsgs = context.chat.slice(-1); 
         if (!lastMsgs || lastMsgs.length === 0) return toastr.warning("没有可收藏的消息。");
         const lastMsg = lastMsgs[0];
         
-        // 适配多滑动页 (swipes)
         const textToSave = (lastMsg.swipes && lastMsg.swipes.length > 0) ? lastMsg.swipes[lastMsg.swipe_id || 0] : lastMsg.mes;
         if (!textToSave || textToSave.trim() === "") return toastr.warning("消息为空。");
 
@@ -93,7 +73,6 @@ async function quickSaveLatest() {
     } catch (e) { toastr.error("❌ 快速收藏失败。"); console.error(e); }
 }
 
-// 截图功能 (长图)
 async function takeScreenshot(bm) {
     toastr.info("📸 正在绘制排版，请稍候...");
     if (typeof window.html2canvas === 'undefined') {
@@ -102,7 +81,6 @@ async function takeScreenshot(bm) {
     }
 
     const safeText = applyTagFilter(bm.text || "*(内容丢失)*");
-    // 如果有 markdown 渲染器则使用，否则转义
     const formattedText = typeof showdown !== 'undefined' ? new showdown.Converter().makeHtml(safeText) : escapeHtml(safeText);
     
     const container = document.createElement('div');
@@ -113,7 +91,7 @@ async function takeScreenshot(bm) {
             <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid var(--SmartThemeBorderColor, #45475a); padding-bottom: 15px; margin-bottom: 20px;">
                 <div>
                     <div style="font-size: 1.4em; font-weight: bold; color: var(--SmartThemeUserColor, #f5c2e7); margin-bottom: 8px;">👤 ${escapeHtml(bm.char || "未知角色")}</div>
-                    <div style="font-size: 0.9em; opacity: 0.8;">发送者: ${escapeHtml(bm.role || "未知")} ${bm.floor !== undefined ? `| 第 ${bm.floor} 楼` : ''}</div>
+                    <div style="font-size: 0.9em; opacity: 0.8;">发送者: ${escapeHtml(bm.role || "未知")}</div>
                 </div>
                 <div style="font-size: 0.85em; opacity: 0.7;">🕒 ${escapeHtml(bm.time || "未知时间")}</div>
             </div>
@@ -123,17 +101,16 @@ async function takeScreenshot(bm) {
     document.body.appendChild(container);
 
     try {
-        await new Promise(r => setTimeout(r, 600)); // 等待渲染
+        await new Promise(r => setTimeout(r, 600)); 
         const canvas = await window.html2canvas(container, { backgroundColor: '#1a1b26', scale: 2, useCORS: true, logging: false });
         const url = canvas.toDataURL('image/png');
-        const imgHtml = `<div style="text-align:center; max-height: 80vh; overflow-y: auto;"><p style="color: var(--SmartThemeQuoteColor); font-weight: bold; margin-bottom: 10px;">✅ 生成成功！请长按或右键保存</p><img src="${url}" style="max-width: 100%; border-radius: 10px;" /></div>`;
+        const imgHtml = `<div style="text-align:center; max-height: 80vh; overflow-y: auto;"><p style="color: var(--SmartThemeQuoteColor); font-weight: bold; margin-bottom: 10px;">✅ 生成成功！长按图片保存</p><img src="${url}" style="max-width: 100%; border-radius: 10px;" /></div>`;
         context.callGenericPopup(imgHtml, context.POPUP_TYPE.TEXT, "", { large: true, wide: true, okButton: false, cancelButton: "关闭" });
     } finally {
         document.body.removeChild(container);
     }
 }
 
-// 主菜单弹窗
 async function openMainMenu() {
     let keepRunning = true;
     while (keepRunning) {
@@ -158,12 +135,8 @@ async function openMainMenu() {
         if (!choice || choice === context.POPUP_RESULT.CANCELLED) { keepRunning = false; break; }
 
         switch (choice) {
-            case 1: 
-                await quickSaveLatest(); 
-                break;
-            case 2:
-                await showBookmarksList();
-                break;
+            case 1: await quickSaveLatest(); break;
+            case 2: await showBookmarksList(); break;
             case 3:
                 const confirm = await context.callGenericPopup("确定要清空所有收藏吗？", context.POPUP_TYPE.CONFIRM);
                 if(confirm === context.POPUP_RESULT.AFFIRMATIVE) {
@@ -176,7 +149,6 @@ async function openMainMenu() {
     }
 }
 
-// 浏览收藏列表 UI
 async function showBookmarksList() {
     const bms = [...extensionSettings[MODULE_NAME].bookmarks].reverse();
     if(bms.length === 0) return toastr.info("收藏夹为空。");
@@ -207,68 +179,72 @@ async function showBookmarksList() {
     await context.callGenericPopup(html, context.POPUP_TYPE.TEXT, "", {
         large: true, wide: true, cancelButton: "返回", okButton: false,
         onOpen: (popup) => {
-            $('.bkm-shot-btn').on('click', async function() { 
-                await takeScreenshot(extensionSettings[MODULE_NAME].bookmarks[$(this).data('idx')]); 
-            });
+            $('.bkm-shot-btn').on('click', async function() { await takeScreenshot(extensionSettings[MODULE_NAME].bookmarks[$(this).data('idx')]); });
             $('.bkm-del-btn').on('click', function() {
                 extensionSettings[MODULE_NAME].bookmarks.splice($(this).data('idx'), 1);
                 context.saveSettingsDebounced();
                 toastr.success("删除成功！");
-                popup.complete(0); // 退出后需要重新点开刷新
+                popup.complete(0); 
             });
         }
     });
 }
 
-// UI 注入与事件绑定
+function toggleFAB() {
+    if (extensionSettings[MODULE_NAME].showFloatingButton) {
+        $('#bkm-fab-container').css('display', 'flex');
+    } else {
+        $('#bkm-fab-container').css('display', 'none');
+    }
+}
+
 async function initUI() {
     loadSettings();
 
-    // 1. 注入设置面板 (左侧拓展栏)
-    try {
-        const htmlPath = `/scripts/extensions/third-party/SillyTavern-GlobalBookmarks/settings.html`;
-        const settingsHtml = await $.get(htmlPath);
-        $('#extensions_settings').append(settingsHtml);
+    // 动态匹配你的 Github 仓库名字 (shoucang) 确保能找到设置文件
+    const possiblePaths =[
+        '/scripts/extensions/third-party/shoucang/settings.html',
+        '/scripts/extensions/third-party/SillyTavern-shoucang/settings.html',
+        '/scripts/extensions/third-party/shoucang-main/settings.html'
+    ];
 
-        // 绑定设置项
+    let settingsHtml = null;
+    for (const path of possiblePaths) {
+        try {
+            settingsHtml = await $.get(path);
+            if (settingsHtml) break;
+        } catch (e) { continue; }
+    }
+
+    if (settingsHtml) {
+        $('#extensions_settings').append(settingsHtml);
         $('#bkm-setting-show-fab').prop('checked', extensionSettings[MODULE_NAME].showFloatingButton).on('change', (e) => {
             extensionSettings[MODULE_NAME].showFloatingButton = $(e.target).prop('checked');
             context.saveSettingsDebounced();
             toggleFAB();
         });
-        
         $('#bkm-setting-filter-tags').val(extensionSettings[MODULE_NAME].filterTags).on('input', (e) => {
             extensionSettings[MODULE_NAME].filterTags = $(e.target).val();
             context.saveSettingsDebounced();
         });
-
         $('#bkm-setting-remove-before').prop('checked', extensionSettings[MODULE_NAME].removeBeforeClosing).on('change', (e) => {
             extensionSettings[MODULE_NAME].removeBeforeClosing = $(e.target).prop('checked');
             context.saveSettingsDebounced();
         });
-    } catch (e) { console.error("加载设置UI失败", e); }
+    }
 
-    // 2. 注入桌面悬浮球
-    const fabHtml = `
-        <div id="bkm-fab-container" class="has-tooltip" data-tooltip="全局收藏夹">
-            <i class="fa-solid fa-star"></i>
-        </div>
-    `;
-    $('body').append(fabHtml);
-    $('#bkm-fab-container').on('click', openMainMenu);
+    // 独立注入悬浮球，不再受前面的加载影响
+    if ($('#bkm-fab-container').length === 0) {
+        $('body').append(`
+            <div id="bkm-fab-container" class="has-tooltip" data-tooltip="全局收藏夹">
+                <i class="fa-solid fa-star"></i>
+            </div>
+        `);
+        $('#bkm-fab-container').on('click', openMainMenu);
+    }
     toggleFAB();
 
-    // 3. 注入输入框旁边的“快速收藏”图标按钮
-    const quickBtnHtml = `
-        <div id="bkm-quick-btn" class="has-tooltip" data-tooltip="快速收藏最新消息">
-            <i class="fa-solid fa-bookmark"></i>
-        </div>
-    `;
-    // 插入到发送按钮的前面
-    $('#send_but').before(quickBtnHtml);
-    $('#bkm-quick-btn').on('click', quickSaveLatest);
-
-    // 4. 注册 /bkm_latest 斜杠命令 (如果用户依然想放进QR栏)
+    // 注册 QR 栏斜杠命令
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({
         name: 'bkm_latest',
         callback: async () => { await quickSaveLatest(); return ""; },
@@ -277,13 +253,4 @@ async function initUI() {
     }));
 }
 
-function toggleFAB() {
-    if (extensionSettings[MODULE_NAME].showFloatingButton) {
-        $('#bkm-fab-container').show();
-    } else {
-        $('#bkm-fab-container').hide();
-    }
-}
-
-// 监听酒馆启动完成事件
 eventSource.on(event_types.APP_READY, initUI);

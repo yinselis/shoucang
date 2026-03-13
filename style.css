@@ -1,10 +1,10 @@
-/* 悬浮球样式 */
+/* 悬浮球样式：专为手机端优化，提升 z-index 防止被遮挡，拉高 bottom 防键盘 */
 #bkm-fab-container {
     position: fixed;
-    bottom: 90px;
-    right: 25px;
-    width: 50px;
-    height: 50px;
+    bottom: 120px; /* 默认高度 */
+    right: 20px;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
     background-color: var(--SmartThemeQuoteColor, #ffcc00);
     color: var(--SmartThemeBackgroundColor, #1a1b26);
@@ -13,30 +13,23 @@
     justify-content: center;
     font-size: 22px;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-    z-index: 8000;
-    transition: transform 0.2s ease, background-color 0.2s;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+    z-index: 999999 !important; /* 突破天际的层级，保证盖在最上面 */
+    opacity: 0.85; /* 略微透明，防止太挡字 */
+    transition: transform 0.2s ease, opacity 0.2s;
 }
 
 #bkm-fab-container:hover {
     transform: scale(1.1);
-    background-color: var(--SmartThemeUserColor, #ff99cc);
+    opacity: 1;
 }
 
-/* 聊天框旁边的快速收藏按钮 */
-#bkm-quick-btn {
-    cursor: pointer;
-    font-size: 1.2em;
-    color: var(--SmartThemeQuoteColor, #ffcc00);
-    transition: all 0.2s;
-    margin-right: 8px;
-    display: flex;
-    align-items: center;
-}
-
-#bkm-quick-btn:hover {
-    transform: translateY(-2px);
-    color: var(--SmartThemeUserColor, #ff99cc);
+/* 针对手机小屏幕进一步拉高悬浮球，避开聊天框和按键 */
+@media screen and (max-width: 800px) {
+    #bkm-fab-container {
+        bottom: 15vh; /* 动态适配手机高度，通常在屏幕下方的15%位置 */
+        right: 15px;
+    }
 }
 
 /* 弹出菜单样式库 */
