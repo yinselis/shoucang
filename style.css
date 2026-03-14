@@ -1,37 +1,206 @@
 /* 悬浮球样式：解除限制，支持 JS 全屏自由拖拽 */
 #bkm-fab-container {
     position: fixed;
-    width: 48px;
-    height: 48px;
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
-    background-color: var(--SmartThemeQuoteColor, #ffcc00);
-    color: var(--SmartThemeBackgroundColor, #1a1b26);
+    background: linear-gradient(135deg, #cba6f7, #b4befe);
+    color: #11111b;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
+    font-size: 20px;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.6);
-    z-index: 9999999 !important; /* 突破天际的层级 */
-    opacity: 0.85; 
-    transition: opacity 0.2s;
-    touch-action: none; /* 关键：防止手机拖动时导致整个网页滚动 */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    z-index: 9999999 !important;
+    opacity: 0.9; 
+    transition: transform 0.2s;
+    touch-action: none;
 }
 
-#bkm-fab-container:hover, #bkm-fab-container:active {
-    opacity: 1;
-    transform: scale(1.05);
+#bkm-fab-container:active {
+    transform: scale(0.95);
 }
 
-/* 弹出菜单样式库（完美还原你截图里的九宫格样式） */
-.bkm-container { padding: 5px; text-align: center; }
-.bkm-title { margin-top: 0; color: var(--SmartThemeQuoteColor, #ffcc00); font-size: 1.2em; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.3)); padding-bottom: 10px; text-align: left; }
-.bkm-btn { width: 100%; padding: 12px 15px; font-size: 14px; border-radius: 10px; border: 1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.3)); background: var(--SmartThemeButtonBackgroundColor, rgba(128,128,128,0.05)); color: var(--SmartThemeBodyColor, inherit); text-align: left; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 10px; box-sizing: border-box; }
-.bkm-btn:hover { background: var(--SmartThemeBlurTintColor, rgba(128,128,128,0.15)); transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-.bkm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
+/* 基础容器 */
+.bkm-list-container {
+    max-height: 82vh;
+    overflow-y: auto;
+    padding: 10px 5px;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: sans-serif;
+}
+
+/* 标题 */
+.bkm-title {
+    margin-top: 0;
+    color: var(--SmartThemeQuoteColor, #cba6f7);
+    font-size: 1.3em;
+    font-weight: bold;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1));
+    padding-bottom: 10px;
+}
+.bkm-count { font-size: 0.75em; opacity: 0.7; font-weight: normal; }
+
+/* 菜单按钮系统 (九宫格优化版) */
+.bkm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
 .bkm-flex-col { display: flex; flex-direction: column; gap: 10px; }
-.bkm-card { border: 1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.3)); border-radius: 10px; padding: 12px; margin-bottom: 15px; background: var(--SmartThemeBlurTintColor, rgba(128,128,128,0.05)); width: 100%; box-sizing: border-box; text-align: left; }
-.bkm-action-btn { background: transparent; border: 1px solid var(--SmartThemeQuoteColor, #ffcc00); color: var(--SmartThemeQuoteColor, #ffcc00); border-radius: 5px; padding: 4px 8px; font-size: 0.85em; cursor: pointer; transition: all 0.2s; font-weight: bold; }
-.bkm-action-btn:hover { background: var(--SmartThemeQuoteColor, #ffcc00); color: var(--SmartThemeBackgroundColor, #000); }
-.bkm-action-btn.restore { border-color: var(--SmartThemeLinkColor, #00ccff); color: var(--SmartThemeLinkColor, #00ccff); }
-.bkm-action-btn.restore:hover { background: var(--SmartThemeLinkColor, #00ccff); color: var(--SmartThemeBackgroundColor, #000); }
+.bkm-menu-btn {
+    width: 100%;
+    padding: 14px 10px;
+    font-size: 0.95em;
+    border-radius: 12px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1));
+    background: var(--SmartThemeButtonBackgroundColor, rgba(255,255,255,0.05));
+    color: var(--SmartThemeBodyColor, #cdd6f4);
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+}
+.bkm-menu-btn i { font-size: 1.3em; }
+.bkm-menu-btn.full-width { grid-column: 1 / -1; flex-direction: row; justify-content: center; }
+.bkm-menu-btn.highlight { border-color: var(--SmartThemeQuoteColor, #cba6f7); color: var(--SmartThemeQuoteColor, #cba6f7); font-weight: bold; background: rgba(203, 166, 247, 0.1); }
+.bkm-menu-btn:active { transform: scale(0.98); background: rgba(255,255,255,0.1); }
+
+/* --- 核心卡片样式 (楼层分组) --- */
+.bkm-group-card {
+    background: var(--SmartThemeBlurTintColor, rgba(30,30,46,0.8));
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1));
+    border-radius: 14px;
+    padding: 0;
+    margin-bottom: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.bkm-group-header {
+    background: rgba(0,0,0,0.15);
+    padding: 12px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.bkm-avatar-name {
+    color: var(--SmartThemeUserColor, #f5c2e7);
+    font-weight: bold;
+    font-size: 1.05em;
+    margin-right: 8px;
+}
+
+.bkm-floor-badge {
+    background: rgba(255,255,255,0.1);
+    color: #bac2de;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 0.8em;
+}
+
+.bkm-time-info {
+    font-size: 0.8em;
+    color: #a6adc8;
+}
+
+/* 折叠栏与预览 */
+.bkm-details { width: 100%; }
+.bkm-summary {
+    list-style: none; /* 隐藏默认箭头 */
+    padding: 12px 15px;
+    cursor: pointer;
+    user-select: none;
+}
+.bkm-summary::-webkit-details-marker { display: none; }
+
+.bkm-preview-box {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.bkm-preview-text {
+    font-size: 0.95em;
+    color: #bac2de;
+    line-height: 1.5;
+    opacity: 0.9;
+}
+.bkm-version-badge {
+    align-self: flex-start;
+    background: rgba(203, 166, 247, 0.15);
+    color: #cba6f7;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.8em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.bkm-version-badge.single { background: rgba(255,255,255,0.08); color: #a6adc8; }
+.bkm-details[open] .bkm-version-badge i { transform: rotate(180deg); }
+
+/* 展开后的各版本列表 */
+.bkm-versions-list {
+    background: rgba(0,0,0,0.2);
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.bkm-version-item {
+    padding: 15px;
+    border-bottom: 1px dashed rgba(255,255,255,0.1);
+}
+.bkm-version-item:last-child { border-bottom: none; }
+
+.bkm-version-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.bkm-version-label {
+    font-size: 0.85em;
+    color: #f38ba8;
+    font-weight: bold;
+}
+
+/* 操作小按钮 */
+.bkm-btn-group { display: flex; gap: 8px; }
+.bkm-icon-btn {
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 0.85em;
+    cursor: pointer;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.bkm-icon-btn.restore { color: #89b4fa; }
+.bkm-icon-btn.shot { color: #a6e3a1; }
+.bkm-icon-btn:active { background: currentColor; color: #11111b !important; }
+
+/* 渲染文本区 */
+.bkm-rendered-text {
+    font-size: 1em;
+    line-height: 1.6;
+    color: var(--SmartThemeBodyColor, #cdd6f4);
+    background: rgba(255,255,255,0.03);
+    padding: 12px;
+    border-radius: 8px;
+}
+
+/* 简单的普通按钮 (如确定/取消) */
+.bkm-btn {
+    width: 100%; padding: 12px; font-size: 14px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05);
+    color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.bkm-btn-highlight { border-color: #cba6f7; color: #cba6f7; font-weight:bold; background: rgba(203,166,247,0.1); }

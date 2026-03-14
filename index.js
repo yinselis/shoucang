@@ -5,9 +5,9 @@ const MODULE_NAME = 'global_bookmarks_pro';
 const defaultSettings = {
     showFloatingButton: true,
     filterTags: 'think',
-    removeBeforeClosing: true, // 默认开启暴力过滤
+    removeBeforeClosing: true,
     bookmarks:[],
-    fabPosition: { top: '30%', left: '85%' } // 悬浮球默认位置
+    fabPosition: { top: '30%', left: '85%' }
 };
 
 function escapeHtml(text) {
@@ -23,23 +23,19 @@ function applyTagFilter(text) {
     const tags = (settings.filterTags || "think").split(',').map(t => t.trim()).filter(t => t);
     
     tags.forEach(tag => {
-        // 第一步：过滤掉所有首尾完整的 <tag>...</tag>
         try {
             const regex = new RegExp(`<${tag}[^>]*>[\\s\\S]*?<\\/${tag}>`, 'gi');
             result = result.replace(regex, '');
         } catch (e) { }
 
-        // 第二步：如果开启了暴力过滤，处理由于截断导致的残缺标签
         if (settings.removeBeforeClosing) {
             const closingTag = `</${tag}>`;
             const closingIndex = result.toLowerCase().indexOf(closingTag.toLowerCase());
             if (closingIndex !== -1) {
-                // 如果只找到了 </tag>，把前面的全删掉（适用于思维链生成一半被截断）
                 result = result.substring(closingIndex + closingTag.length);
             } else {
                 const openIndex = result.toLowerCase().indexOf(`<${tag}`.toLowerCase());
                 if (openIndex !== -1) {
-                    // 如果只找到了 <tag>，把后面的全删掉（保留标签前面的干净文字）
                     result = result.substring(0, openIndex);
                 }
             }
@@ -57,17 +53,17 @@ function loadSettings() {
     }
 }
 
-// ================= 导回聊天功能 =================
+// ================= 导回聊天功能 (照搬原版逻辑) =================
 async function restoreBookmarkToChat(bm) {
     try {
         const lastMessageId = context.chat.length - 1;
         let optionsHtml = `<div class="bkm-container"><h3 class="bkm-title">↩️ 请选择导回位置</h3><div class="bkm-flex-col">`;
         if (bm.floor !== undefined && bm.floor <= lastMessageId && bm.floor >= 0) {
-            optionsHtml += `<button id="res-orig" class="bkm-btn" style="color:var(--SmartThemeLinkColor); font-weight:bold;">🔙 恢复到原楼层 (第 ${bm.floor} 楼) 的新分页</button>`;
+            optionsHtml += `<button id="res-orig" class="bkm-btn bkm-btn-highlight">🔙 恢复到原楼层 (第 ${bm.floor} 楼)</button>`;
         }
         if (lastMessageId >= 0) {
-            optionsHtml += `<button id="res-last" class="bkm-btn">⬇️ 追加到最新楼层 (第 ${lastMessageId} 楼) 的新分页</button>`;
-            optionsHtml += `<button id="res-custom" class="bkm-btn" style="color:var(--SmartThemeQuoteColor);">🔢 插入到自定义楼层的新分页</button>`;
+            optionsHtml += `<button id="res-last" class="bkm-btn">⬇️ 追加到最新楼层 (第 ${lastMessageId} 楼)</button>`;
+            optionsHtml += `<button id="res-custom" class="bkm-btn">🔢 插入到自定义楼层</button>`;
         }
         optionsHtml += `<button id="res-new" class="bkm-btn">🆕 作为全新消息发送到末尾</button></div></div>`;
 
@@ -82,7 +78,6 @@ async function restoreBookmarkToChat(bm) {
         });
 
         if (!choice || choice === context.POPUP_RESULT.CANCELLED) return;
-
         const safeText = bm.text || "*(内容丢失)*";
 
         if (choice === 1 || choice === 2 || choice === 4) {
@@ -100,13 +95,15 @@ async function restoreBookmarkToChat(bm) {
             if (!targetMsg) return toastr.error("❌ 找不到目标楼层！");
             
             if (!targetMsg.swipes) targetMsg.swipes = [targetMsg.mes || ""];
+            if (targetMsg.swipes.includes(safeText)) return toastr.warning("⚠️ 该楼层已存在完全相同的文本分页。");
+            
             targetMsg.swipes.push(safeText);
             targetMsg.swipe_id = targetMsg.swipes.length - 1;
             targetMsg.mes = safeText;
 
             context.updateMessageBlock(targetFloor, targetMsg);
             context.saveChat();
-            toastr.success(`✅ 已成功作为【第 ${targetMsg.swipes.length} 页】插入到第 ${targetFloor} 楼！`);
+            toastr.success(`✅ 已作为【第 ${targetMsg.swipes.length} 页】插入到第 ${targetFloor} 楼！`);
         } else if (choice === 3) {
             const isUser = (bm.role || "").toLowerCase() === 'user' || bm.role === (context.name1 || "User");
             context.chat.push({
@@ -119,14 +116,14 @@ async function restoreBookmarkToChat(bm) {
             });
             context.updateMessageBlock(context.chat.length - 1, context.chat[context.chat.length - 1]);
             context.saveChat();
-            toastr.success(`✅ 已成功作为新消息追加到末尾！`);
+            toastr.success(`✅ 已作为新消息追加到末尾！`);
         }
     } catch (e) { toastr.error("❌ 导回失败！"); }
 }
 
 // ================= 美化版长图截取 =================
 async function takeScreenshot(bm) {
-    toastr.info("📸 正在绘制排版，请稍候...");
+    toastr.info("📸 正在绘制长图，请稍候...");
     if (typeof window.html2canvas === 'undefined') {
         try { await $.getScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"); } 
         catch (e) { return toastr.error("❌ 无法加载截图引擎，请检查网络。"); }
@@ -137,20 +134,20 @@ async function takeScreenshot(bm) {
     const initialChar = bm.char ? bm.char.charAt(0).toUpperCase() : 'A';
     
     const container = document.createElement('div');
-    container.style.cssText = 'position:fixed; top:0; left:0; width:100%; max-width:600px; padding:30px; background: linear-gradient(135deg, #1e1e2e, #11111b); z-index:-9999; box-sizing:border-box; font-family: sans-serif;';
+    container.style.cssText = 'position:fixed; top:0; left:0; width:100%; max-width:600px; padding:20px; background: linear-gradient(135deg, #1e1e2e, #11111b); z-index:-9999; box-sizing:border-box; font-family: sans-serif;';
 
     container.innerHTML = `
-        <div style="background: rgba(49, 50, 68, 0.9); border-radius: 16px; padding: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05);">
-            <div style="display: flex; align-items: center; margin-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
-                <div style="background: #cba6f7; color: #11111b; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 22px; margin-right: 15px; box-shadow: 0 4px 10px rgba(203, 166, 247, 0.3);">
+        <div style="background: rgba(49, 50, 68, 0.95); border-radius: 16px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05);">
+            <div style="display: flex; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
+                <div style="background: var(--SmartThemeQuoteColor, #cba6f7); color: #000; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 22px; margin-right: 15px;">
                     ${initialChar}
                 </div>
                 <div>
-                    <div style="color: #cdd6f4; font-weight: bold; font-size: 1.2em; letter-spacing: 0.5px;">${escapeHtml(bm.char || "未知")}</div>
-                    <div style="color: #a6adc8; font-size: 0.85em; margin-top: 3px;">🕒 ${escapeHtml(bm.time)} | 💬 ${escapeHtml(bm.role)} ${bm.floor !== undefined ? `| ${bm.floor}楼` : ''}</div>
+                    <div style="color: #cdd6f4; font-weight: bold; font-size: 1.2em;">${escapeHtml(bm.char || "未知")}</div>
+                    <div style="color: #a6adc8; font-size: 0.85em; margin-top: 4px;">🕒 ${escapeHtml(bm.time)} | 💬 第 ${bm.floor !== undefined ? bm.floor : '?'} 楼</div>
                 </div>
             </div>
-            <div class="mes_text" style="color: #bac2de; font-size: 1.1em; line-height: 1.75; text-align: justify; word-wrap: break-word;">${formattedText}</div>
+            <div class="mes_text" style="color: #bac2de; font-size: 1.05em; line-height: 1.7; word-wrap: break-word;">${formattedText}</div>
         </div>
     `;
     document.body.appendChild(container);
@@ -159,14 +156,20 @@ async function takeScreenshot(bm) {
         await new Promise(r => setTimeout(r, 600)); 
         const canvas = await window.html2canvas(container, { backgroundColor: '#11111b', scale: window.devicePixelRatio > 1 ? window.devicePixelRatio : 2, useCORS: true, logging: false });
         const url = canvas.toDataURL('image/png');
-        const imgHtml = `<div style="text-align:center; max-height: 80vh; overflow-y: auto;"><p style="color: var(--SmartThemeQuoteColor); font-weight: bold; margin-bottom: 10px;">✅ 生成成功！长按或右键保存</p><img src="${url}" style="max-width: 100%; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.5);" /></div>`;
+        const imgHtml = `<div style="text-align:center; max-height: 80vh; overflow-y: auto;"><p style="color: var(--SmartThemeQuoteColor); font-weight: bold; margin-bottom: 15px;">✅ 生成成功！长按或右键保存</p><img src="${url}" style="max-width: 100%; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.5);" /></div>`;
         context.callGenericPopup(imgHtml, context.POPUP_TYPE.TEXT, "", { large: true, wide: true, okButton: false, cancelButton: "关闭" });
     } finally {
         document.body.removeChild(container);
     }
 }
 
-// 快速保存最新消息
+// ================= 数据保存逻辑 (修复名字抓取) =================
+function getRealCharName(msg) {
+    if (msg.is_user) return context.name1 || 'User';
+    if (msg.name && msg.name !== 'SillyTavern System') return msg.name;
+    return context.name2 || 'AI';
+}
+
 async function quickSaveLatest() {
     try {
         const lastMsgs = context.chat.slice(-1); 
@@ -175,31 +178,137 @@ async function quickSaveLatest() {
         const textToSave = (lastMsg.swipes && lastMsg.swipes.length > 0) ? lastMsg.swipes[lastMsg.swipe_id || 0] : lastMsg.mes;
         if (!textToSave || textToSave.trim() === "") return toastr.warning("消息为空。");
         
+        const realChar = getRealCharName(lastMsg);
+        
         extensionSettings[MODULE_NAME].bookmarks.push({ 
-            time: new Date().toLocaleString(), char: context.name2 || "未知", role: lastMsg.is_user ? 'User' : (lastMsg.name || 'AI'), text: textToSave, floor: context.chat.length - 1, chatId: context.getCurrentChatId() 
+            time: new Date().toLocaleString(), 
+            char: realChar, 
+            role: lastMsg.is_user ? 'User' : 'AI', 
+            text: textToSave, 
+            floor: context.chat.length - 1, 
+            chatId: context.getCurrentChatId() 
         });
         context.saveSettingsDebounced();
         toastr.success("✨ 成功收藏最新回复！");
     } catch (e) { toastr.error("❌ 收藏失败。"); }
 }
 
-// ================= 多选/批量管理 UI =================
+// ================= 全新分组 UI (按楼层合并分页) =================
+async function showBookmarksUI(bms, titleStr) {
+    if (!bms || bms.length === 0) return toastr.info("📂 收藏夹是空的或没有匹配项。");
+    
+    // 1. 核心还原：使用原脚本的 Map 逻辑对同聊天、同角色、同楼层进行分组
+    const groupsMap = new Map();
+    bms.forEach(bm => {
+        const dateStr = bm.time ? bm.time.split(' ')[0] : 'unknown';
+        const key = (bm.chatId && bm.floor !== undefined) ? `${bm.chatId}_${bm.floor}` : `${bm.char}_${bm.floor}_${dateStr}`;
+        if (!groupsMap.has(key)) {
+            groupsMap.set(key, { char: bm.char || "未知", floor: bm.floor, time: bm.time || "未知", items:[] });
+        }
+        groupsMap.get(key).items.push(bm);
+    });
+    
+    // 将分组结果转为数组并倒序（最新收藏在前）
+    const groupedBookmarks = Array.from(groupsMap.values()).reverse();
+
+    let htmlContent = `<div class="bkm-list-container">`;
+    htmlContent += `<h3 class="bkm-title">${escapeHtml(titleStr)} <span class="bkm-count">(共 ${bms.length} 条)</span></h3>`;
+    
+    groupedBookmarks.forEach((group, gIndex) => {
+        const floorText = group.floor !== undefined ? `第 ${group.floor} 楼` : `未知楼层`;
+        const total = group.items.length;
+        
+        // 取第一条作为预览
+        const firstText = applyTagFilter(group.items[0].text || "*(内容丢失)*");
+        let previewText = escapeHtml(firstText.replace(/\n/g, ' ').substring(0, 35));
+        if (firstText.length > 35) previewText += '...';
+
+        htmlContent += `
+        <div class="bkm-group-card">
+            <div class="bkm-group-header">
+                <div class="bkm-group-info">
+                    <span class="bkm-avatar-name"><i class="fa-solid fa-user"></i> ${escapeHtml(group.char)}</span>
+                    <span class="bkm-floor-badge">${floorText}</span>
+                </div>
+                <div class="bkm-time-info">🕒 ${escapeHtml(group.time)}</div>
+            </div>
+            
+            <details class="bkm-details">
+                <summary class="bkm-summary">
+                    <div class="bkm-preview-box">
+                        <span class="bkm-preview-text">${previewText}</span>
+                        ${total > 1 ? `<span class="bkm-version-badge">${total}个版本 <i class="fa-solid fa-chevron-down"></i></span>` : `<span class="bkm-version-badge single">展开 <i class="fa-solid fa-chevron-down"></i></span>`}
+                    </div>
+                </summary>
+                
+                <div class="bkm-versions-list">`;
+        
+        // 遍历该楼层下的所有分页版本
+        group.items.forEach((item, iIndex) => {
+            const safeItemText = applyTagFilter(item.text || "*(内容丢失)*");
+            const formattedText = typeof showdown !== 'undefined' ? new showdown.Converter().makeHtml(safeItemText) : escapeHtml(safeItemText);
+            
+            htmlContent += `
+                    <div class="bkm-version-item">
+                        <div class="bkm-version-toolbar">
+                            <span class="bkm-version-label">版本 #${iIndex + 1}</span>
+                            <div class="bkm-btn-group">
+                                <button class="bkm-icon-btn restore bkm-restore-btn" data-gindex="${gIndex}" data-iindex="${iIndex}">
+                                    <i class="fa-solid fa-reply"></i> 导回
+                                </button>
+                                <button class="bkm-icon-btn shot bkm-shot-btn" data-gindex="${gIndex}" data-iindex="${iIndex}">
+                                    <i class="fa-solid fa-image"></i> 长图
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mes_text bkm-rendered-text">${formattedText}</div>
+                    </div>`;
+        });
+        
+        htmlContent += `
+                </div>
+            </details>
+        </div>`;
+    });
+    htmlContent += `</div>`;
+
+    await context.callGenericPopup(htmlContent, context.POPUP_TYPE.TEXT, "", {
+        large: true, wide: true, cancelButton: "返回", okButton: false, allowVerticalScrolling: true,
+        onOpen: (popup) => {
+            // 事件绑定，通过 gIndex 和 iIndex 精准定位数据
+            $('.bkm-shot-btn').on('click', async function(e) { 
+                e.preventDefault(); e.stopPropagation();
+                const gIdx = $(this).data('gindex');
+                const iIdx = $(this).data('iindex');
+                await takeScreenshot(groupedBookmarks[gIdx].items[iIdx]); 
+            });
+            $('.bkm-restore-btn').on('click', async function(e) { 
+                e.preventDefault(); e.stopPropagation();
+                const gIdx = $(this).data('gindex');
+                const iIdx = $(this).data('iindex');
+                await restoreBookmarkToChat(groupedBookmarks[gIdx].items[iIdx]); 
+            });
+        }
+    });
+}
+
+// 多选管理 UI (用于删除等)
 async function showMultiSelectUI(items, config) {
-    let htmlContent = `<div style="max-height: 75vh; overflow-y: auto; padding: 5px; text-align: left;">`;
+    let htmlContent = `<div class="bkm-list-container">`;
     htmlContent += `<h3 class="bkm-title" style="color: ${config.color || 'var(--SmartThemeQuoteColor)'};">${config.title}</h3>`;
-    htmlContent += `<div class="bkm-grid" style="margin-bottom: 15px;"><button id="btn-sel-all" class="bkm-btn">✅ 全选</button><button id="btn-sel-none" class="bkm-btn">❌ 全不选</button></div><div class="bkm-flex-col">`;
+    htmlContent += `<div class="bkm-grid"><button id="btn-sel-all" class="bkm-btn">✅ 全选</button><button id="btn-sel-none" class="bkm-btn">❌ 全不选</button></div><div class="bkm-flex-col">`;
     
     items.forEach((item, index) => {
         const formattedFullText = typeof showdown !== 'undefined' ? new showdown.Converter().makeHtml(item.fullText) : escapeHtml(item.fullText);
         htmlContent += `
-        <div class="bkm-card" style="margin-bottom: 0; padding: 12px;">
-            <div style="display:flex; align-items:flex-start;">
-                <input type="checkbox" id="cb-${index}" class="bkm-sel-cb" data-value="${item.value}" style="width: 18px; height: 18px; margin-top: 2px; margin-right: 10px; flex-shrink:0; cursor:pointer;">
-                <label for="cb-${index}" style="font-size: 0.95em; flex: 1; line-height:1.4; word-break: break-all; cursor:pointer; margin:0;">${item.label}</label>
+        <div class="bkm-group-card" style="padding:12px;">
+            <div style="display:flex; align-items:flex-start; gap: 10px;">
+                <input type="checkbox" id="cb-${index}" class="bkm-sel-cb" data-value="${item.value}" style="width:20px; height:20px; margin-top:2px; flex-shrink:0;">
+                <label for="cb-${index}" style="font-size: 0.95em; flex: 1; line-height:1.4; word-break: break-all; margin:0;">${item.label}</label>
             </div>
-            <details style="margin-top: 8px; margin-left: 28px;">
-                <summary style="cursor:pointer; font-size: 0.85em; color: var(--SmartThemeQuoteColor); opacity: 0.8;">(点击展开)</summary>
-                <div class="mes_text" style="margin-top: 8px; font-size: 0.9em; line-height: 1.5; background: var(--SmartThemeBlurTintColor); padding: 10px; border-radius: 8px; max-height: 250px; overflow-y: auto;">${formattedFullText}</div>
+            <details class="bkm-details" style="margin-top: 8px; margin-left: 30px;">
+                <summary style="font-size: 0.85em; color: var(--SmartThemeQuoteColor); opacity: 0.8;">(点击展开完整内容)</summary>
+                <div class="mes_text bkm-rendered-text" style="margin-top: 8px;">${formattedFullText}</div>
             </details>
         </div>`;
     });
@@ -218,84 +327,33 @@ async function showMultiSelectUI(items, config) {
     return null;
 }
 
-// 高级分类浏览 UI
-async function showBookmarksUI(bms, titleStr) {
-    if (!bms || bms.length === 0) return toastr.info("📂 没有找到匹配的收藏。");
-    
-    let htmlContent = `<div style="max-height: 80vh; overflow-y: auto; padding: 5px; width: 100%; box-sizing: border-box; text-align:left;">`;
-    htmlContent += `<h3 class="bkm-title">${escapeHtml(titleStr)} <span style="font-size:0.8em; opacity:0.7;">(共 ${bms.length} 条)</span></h3>`;
-    
-    bms.forEach((item, index) => {
-        const safeItemText = applyTagFilter(item.text || "*(内容丢失)*");
-        const formattedText = typeof showdown !== 'undefined' ? new showdown.Converter().makeHtml(safeItemText) : escapeHtml(safeItemText);
-        let preview = escapeHtml(safeItemText.replace(/\n/g, ' ').substring(0, 40)) + "...";
-
-        htmlContent += `
-        <div class="bkm-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size: 0.85em; opacity: 0.8; margin-bottom: 10px; border-bottom: 1px dashed var(--SmartThemeBorderColor); padding-bottom: 8px;">
-                <div><span style="color: var(--SmartThemeUserColor); font-weight: bold; font-size: 1.1em;">👤 ${escapeHtml(item.char)}</span> | 🕒 ${item.time}</div>
-            </div>
-            <details>
-                <summary style="cursor: pointer; font-size: 0.95em; opacity: 0.9; outline: none;"><span style="opacity: 0.8;">${preview}</span></summary>
-                <div style="margin-top: 12px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                        <div style="font-size:0.8em; color:var(--SmartThemeQuoteColor); opacity: 0.8;">[发送者: ${escapeHtml(item.role || "未知")}]</div>
-                        <div style="display:flex; gap: 8px;">
-                            <button class="bkm-action-btn restore bkm-restore-btn" data-idx="${index}">↩️ 导回聊天</button>
-                            <button class="bkm-action-btn bkm-shot-btn" data-idx="${index}">📸 生成长图</button>
-                        </div>
-                    </div>
-                    <div class="mes_text">${formattedText}</div>
-                </div>
-            </details>
-        </div>`;
-    });
-    htmlContent += `</div>`;
-
-    await context.callGenericPopup(htmlContent, context.POPUP_TYPE.TEXT, "", {
-        large: true, wide: true, cancelButton: "返回", okButton: false,
-        onOpen: (popup) => {
-            $('.bkm-shot-btn').on('click', async function() { await takeScreenshot(bms[$(this).data('idx')]); });
-            $('.bkm-restore-btn').on('click', async function() { await restoreBookmarkToChat(bms[$(this).data('idx')]); });
-        }
-    });
-}
-
-// 导出下载
-async function downloadData(content, filename) {
-    try {
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = filename;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        toastr.success('📄 下载成功！');
-    } catch (e) { toastr.error("❌ 下载失败。"); }
-}
-
 // ================= 主菜单 =================
 async function openMainMenu() {
     let keepRunning = true;
     while (keepRunning) {
         const menuHtml = `
-            <h3 class="bkm-title" style="text-align:center;">🌟 全局收藏夹</h3>
-            <div class="bkm-grid">
-                <button id="btn-bkm-10" class="bkm-btn">🔖 快速收藏 (最新)</button>
-                <button id="btn-bkm-11" class="bkm-btn">📌 收藏指定楼层</button>
-                <button id="btn-bkm-16" class="bkm-btn">🔍 查阅历史生成</button>
-                <button id="btn-bkm-17" class="bkm-btn">🔎 搜索收藏</button>
-                <button id="btn-bkm-12" class="bkm-btn" style="grid-column: 1 / -1; color:var(--SmartThemeLinkColor);">📂 查看与浏览 (含导回功能)</button>
-                <button id="btn-bkm-18" class="bkm-btn" style="grid-column: 1 / -1; color:#ff6666;">🗑️ 管理与删除</button>
-                <button id="btn-bkm-13" class="bkm-btn" style="color:var(--SmartThemeLinkColor);">📤 导出与备份</button>
-                <button id="btn-bkm-15" class="bkm-btn" style="color:var(--SmartThemeLinkColor);">📥 导入备份</button>
-                <button id="btn-bkm-19" class="bkm-btn" style="grid-column: 1 / -1; color:var(--SmartThemeQuoteColor);">⚙️ 过滤标签设置 (如: think)</button>
+            <div class="bkm-list-container">
+                <h3 class="bkm-title" style="text-align:center;">🌟 聊天收藏夹 Pro</h3>
+                <div class="bkm-grid">
+                    <button id="btn-bkm-10" class="bkm-menu-btn"><i class="fa-solid fa-bookmark" style="color:#a6e3a1;"></i> 快速收藏(最新)</button>
+                    <button id="btn-bkm-11" class="bkm-menu-btn"><i class="fa-solid fa-thumbtack" style="color:#f9e2af;"></i> 收藏指定楼层</button>
+                    <button id="btn-bkm-16" class="bkm-menu-btn"><i class="fa-solid fa-clock-rotate-left" style="color:#89b4fa;"></i> 查阅历史生成</button>
+                    <button id="btn-bkm-17" class="bkm-menu-btn"><i class="fa-solid fa-magnifying-glass" style="color:#cba6f7;"></i> 搜索收藏记录</button>
+                    
+                    <button id="btn-bkm-12" class="bkm-menu-btn full-width highlight"><i class="fa-solid fa-folder-open"></i> 浏览所有收藏 (可导回)</button>
+                    
+                    <button id="btn-bkm-18" class="bkm-menu-btn" style="color:#f38ba8;"><i class="fa-solid fa-trash-can"></i> 管理与删除</button>
+                    <button id="btn-bkm-13" class="bkm-menu-btn"><i class="fa-solid fa-file-export"></i> 导出备份TXT</button>
+                    
+                    <button id="btn-bkm-19" class="bkm-menu-btn full-width"><i class="fa-solid fa-gear" style="color:#94e2d5;"></i> 标签过滤设置 (当前: ${extensionSettings[MODULE_NAME].filterTags})</button>
+                </div>
             </div>
         `;
 
         const choice = await context.callGenericPopup(menuHtml, context.POPUP_TYPE.TEXT, "", {
             cancelButton: "退出", okButton: false,
             onOpen: (popup) => {
-                $('.bkm-btn').on('click', function() { 
+                $('.bkm-menu-btn').on('click', function() { 
                     const idStr = $(this).attr('id');
                     if(idStr) popup.complete(parseInt(idStr.replace('btn-bkm-', ''))); 
                 });
@@ -315,7 +373,8 @@ async function openMainMenu() {
                 if (isNaN(mesId) || !context.chat[mesId]) { toastr.error("❌ 找不到该楼层！"); break; }
                 const msg = context.chat[mesId];
                 const text = (msg.swipes && msg.swipes.length > 0) ? msg.swipes[msg.swipe_id || 0] : msg.mes;
-                allBms.push({ time: new Date().toLocaleString(), char: context.name2 || "未知", role: msg.is_user ? 'User' : (msg.name || 'AI'), text: text, floor: mesId, chatId: context.getCurrentChatId() });
+                const realChar = getRealCharName(msg);
+                allBms.push({ time: new Date().toLocaleString(), char: realChar, role: msg.is_user ? 'User' : 'AI', text: text, floor: mesId, chatId: context.getCurrentChatId() });
                 context.saveSettingsDebounced();
                 toastr.success(`✨ 成功收藏第 ${mesId} 楼！`);
                 break;
@@ -324,21 +383,23 @@ async function openMainMenu() {
                 if (!range || !context.chat[parseInt(range)]) { toastr.error("❌ 无效楼层！"); break; }
                 const targetMsg = context.chat[parseInt(range)];
                 const targetSwipes = targetMsg.swipes || [targetMsg.mes];
-                const swipeItems = targetSwipes.map((text, i) => ({ text: text, char: context.name2, time: new Date().toLocaleString(), role: targetMsg.is_user ? 'User' : (targetMsg.name || 'AI'), floor: parseInt(range) }));
-                await showBookmarksUI(swipeItems, `第 ${range} 楼的历史生成 (${targetSwipes.length} 版)`);
+                const rChar = getRealCharName(targetMsg);
+                // 构造成统一的格式方便传给 showBookmarksUI
+                const swipeItems = targetSwipes.map((text, i) => ({ text: text, char: rChar, time: new Date().toLocaleString(), role: targetMsg.is_user ? 'User' : 'AI', floor: parseInt(range), chatId: context.getCurrentChatId() }));
+                await showBookmarksUI(swipeItems, `第 ${range} 楼的历史生成`);
                 break;
             case 17:
                 const keyword = await context.callGenericPopup("请输入搜索关键字：", context.POPUP_TYPE.INPUT, "", { cancelButton: "取消" });
                 if (!keyword || !keyword.trim()) break;
                 const filtered = allBms.filter(b => (b.char && b.char.includes(keyword)) || (b.text && b.text.includes(keyword)));
-                await showBookmarksUI([...filtered].reverse(), `搜索结果: "${keyword}"`);
+                await showBookmarksUI([...filtered], `搜索结果: "${keyword}"`);
                 break;
             case 12:
-                await showBookmarksUI([...allBms].reverse(), "所有收藏 (最新优先)");
+                await showBookmarksUI([...allBms], "所有收藏");
                 break;
             case 18:
                 if (allBms.length === 0) { toastr.info("收藏夹为空。"); break; }
-                const itemsToDelete = allBms.map((bm, i) => ({ label: `[${escapeHtml(bm.char)}] ${escapeHtml(applyTagFilter(bm.text).substring(0, 30))}...`, value: i, fullText: applyTagFilter(bm.text) }));
+                const itemsToDelete = allBms.map((bm, i) => ({ label: `[${escapeHtml(bm.char)} - 第${bm.floor}楼] ${escapeHtml(applyTagFilter(bm.text).substring(0, 25))}...`, value: i, fullText: applyTagFilter(bm.text) }));
                 const indicesToDelete = await showMultiSelectUI(itemsToDelete, { title: '🗑️ 勾选要删除的收藏', okButtonText: '永久删除', color: '#ff6666' });
                 if (indicesToDelete && indicesToDelete.length > 0) {
                     indicesToDelete.sort((a, b) => b - a).forEach(idx => allBms.splice(idx, 1));
@@ -349,11 +410,14 @@ async function openMainMenu() {
             case 13:
                 if (allBms.length === 0) { toastr.info("收藏夹为空。"); break; }
                 let txtContent = `=== 全局收藏夹导出 ===\n\n`;
-                allBms.forEach((b, i) => { txtContent += `[#${i+1}] 角色: ${b.char} | 时间: ${b.time}\n${applyTagFilter(b.text)}\n------------------------\n\n`; });
-                await downloadData(txtContent, `收藏夹备份_${Date.now()}.txt`);
-                break;
-            case 15:
-                toastr.warning("暂未实现完整的文件读取解析，如有需要可以直接复制上述备份。");
+                allBms.forEach((b, i) => { txtContent += `[#${i+1}] 角色: ${b.char} | 楼层: ${b.floor} | 时间: ${b.time}\n${applyTagFilter(b.text)}\n------------------------\n\n`; });
+                try {
+                    const blob = new Blob([txtContent], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url; a.download = `收藏夹备份_${Date.now()}.txt`;
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    toastr.success('📄 下载成功！');
+                } catch (e) { toastr.error("❌ 下载失败。"); }
                 break;
             case 19:
                 const newTags = await context.callGenericPopup(`请输入要过滤的标签（如: think, thought）：`, context.POPUP_TYPE.INPUT, extensionSettings[MODULE_NAME].filterTags, { cancelButton: "取消" });
