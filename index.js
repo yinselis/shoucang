@@ -73,7 +73,7 @@ async function restoreBookmarkToChat(bm) {
         optionsHtml += `<button id="res-new" class="bkm-btn">🆕 作为全新消息发送到末尾</button></div></div>`;
 
         const choice = await context.callGenericPopup(optionsHtml, context.POPUP_TYPE.TEXT, "", {
-            okButton: false, cancelButton: "取消",
+            okButton: false, cancelButton: "取消", allowVerticalScrolling: true,
             onOpen: async (popup) => {
                 $('#res-orig').on('click', () => popup.complete(1));
                 $('#res-last').on('click', () => popup.complete(2));
@@ -274,24 +274,20 @@ async function showBookmarksUI(bms, titleStr) {
     await context.callGenericPopup(htmlContent, context.POPUP_TYPE.TEXT, "", {
         large: true, wide: true, cancelButton: "返回", okButton: false, allowVerticalScrolling: true,
         onOpen: (popup) => {
-            // 初始化每个分组的当前页码
             const groupStates = {};
             groupedBookmarks.forEach((g, idx) => groupStates[idx] = { current: 0, max: g.items.length, items: g.items });
 
-            // 绑定左右切换按钮
             $('.bkm-prev, .bkm-next').on('click', function(e) {
                 e.preventDefault(); e.stopPropagation();
                 const gIndex = $(this).data('gindex');
                 const dir = $(this).hasClass('bkm-next') ? 1 : -1;
                 const state = groupStates[gIndex];
                 
-                // 隐藏旧的，计算新的，显示新的
                 $(`#bkm-content-${gIndex}-${state.current}`).hide();
                 state.current = (state.current + dir + state.max) % state.max;
                 $(`#bkm-content-${gIndex}-${state.current}`).show();
                 $(`#bkm-counter-${gIndex}`).text(`${state.current + 1} / ${state.max}`);
                 
-                // 顺便更新外面闭合状态下显示的预览文字
                 const safeText = applyTagFilter(state.items[state.current].text || "");
                 let preview = escapeHtml(safeText.replace(/\n/g, ' ').substring(0, 35));
                 if (safeText.length > 35) preview += '...';
@@ -304,7 +300,7 @@ async function showBookmarksUI(bms, titleStr) {
     });
 }
 
-// 多选 UI (删除/导出)
+// 多选 UI (删除/导出) 【本次修复核心：加入 allowVerticalScrolling: true 解除滚动限制】
 async function showMultiSelectUI(items, config) {
     let htmlContent = `<div class="bkm-list-container">`;
     htmlContent += `<h3 class="bkm-title" style="color: ${config.color || 'var(--SmartThemeQuoteColor)'};">${config.title}</h3>`;
@@ -328,7 +324,11 @@ async function showMultiSelectUI(items, config) {
     
     let selectedSet = new Set();
     const choice = await context.callGenericPopup(htmlContent, context.POPUP_TYPE.TEXT, "", {
-        okButton: config.okButtonText, cancelButton: "取消", large: true, wide: true,
+        okButton: config.okButtonText, 
+        cancelButton: "取消", 
+        large: true, 
+        wide: true,
+        allowVerticalScrolling: true, /* 【修复魔法】让超出屏幕的元素可以滑动！ */
         onOpen: () => {
             $('.bkm-sel-cb').on('change', function() { const val = $(this).data('value'); if ($(this).is(':checked')) selectedSet.add(val); else selectedSet.delete(val); });
             $('#btn-sel-all').on('click', () => { $('.bkm-sel-cb').prop('checked', true).each(function() { selectedSet.add($(this).data('value')); }); });
@@ -386,7 +386,9 @@ async function openMainMenu() {
         `;
 
         const choice = await context.callGenericPopup(menuHtml, context.POPUP_TYPE.TEXT, "", {
-            cancelButton: "退出", okButton: false,
+            cancelButton: "退出", 
+            okButton: false, 
+            allowVerticalScrolling: true, /* 主菜单也加上滑动，防止小屏手机被截断 */
             onOpen: (popup) => {
                 $('.bkm-menu-btn').on('click', function() { 
                     const idStr = $(this).attr('id');
@@ -434,7 +436,7 @@ async function openMainMenu() {
             case 12: { 
                 const viewHtml = `<div class="bkm-list-container"><h3 class="bkm-title">📂 请选择浏览模式</h3><div class="bkm-flex-col"><button id="view-latest" class="bkm-btn highlight">🆕 最新优先 (默认)</button><button id="view-char" class="bkm-btn">👤 按角色分类</button><button id="view-date" class="bkm-btn">📅 按日期分类</button><button id="view-oldest" class="bkm-btn">⏳ 按时间排序 (从旧到新)</button></div></div>`;
                 const viewChoice = await context.callGenericPopup(viewHtml, context.POPUP_TYPE.TEXT, "", {
-                    okButton: false, cancelButton: "返回",
+                    okButton: false, cancelButton: "返回", allowVerticalScrolling: true,
                     onOpen: (popup) => { $('#view-latest').on('click', () => popup.complete(1)); $('#view-char').on('click', () => popup.complete(2)); $('#view-date').on('click', () => popup.complete(3)); $('#view-oldest').on('click', () => popup.complete(4)); }
                 });
                 
@@ -449,7 +451,7 @@ async function openMainMenu() {
                     let charHtml = `<div class="bkm-list-container"><h3 class="bkm-title">👤 请选择角色</h3><div class="bkm-flex-col">`;
                     charKeys.forEach((c, idx) => { charHtml += `<button class="bkm-btn char-btn" data-idx="${idx}">${escapeHtml(c)} <span style="opacity:0.6; font-size:0.9em; margin-left:auto;">(${charGroups[c].count}条)</span></button>`; });
                     charHtml += `</div></div>`;
-                    const cChoice = await context.callGenericPopup(charHtml, context.POPUP_TYPE.TEXT, "", { okButton: false, cancelButton: "返回", onOpen: (p) => { $('.char-btn').on('click', function() { p.complete(parseInt($(this).data('idx')) + 1000); }); } });
+                    const cChoice = await context.callGenericPopup(charHtml, context.POPUP_TYPE.TEXT, "", { okButton: false, cancelButton: "返回", allowVerticalScrolling: true, onOpen: (p) => { $('.char-btn').on('click', function() { p.complete(parseInt($(this).data('idx')) + 1000); }); } });
                     if (cChoice >= 1000) await showBookmarksUI(charGroups[charKeys[cChoice - 1000]].items, `角色收藏: ${charKeys[cChoice - 1000]}`);
                 } else if (viewChoice === 3) {
                     const dateGroups =[...allBms].reverse().reduce((acc, bm) => { const d = bm.time ? new Date(bm.time).toLocaleDateString() : '未知日期'; if (!acc[d]) acc[d] = { count: 0, items: [] }; acc[d].count++; acc[d].items.push(bm); return acc; }, {});
@@ -457,7 +459,7 @@ async function openMainMenu() {
                     let dateHtml = `<div class="bkm-list-container"><h3 class="bkm-title">📅 请选择日期</h3><div class="bkm-flex-col">`;
                     dateKeys.forEach((d, idx) => { dateHtml += `<button class="bkm-btn date-btn" data-idx="${idx}">${d} <span style="opacity:0.6; font-size:0.9em; margin-left:auto;">(${dateGroups[d].count}条)</span></button>`; });
                     dateHtml += `</div></div>`;
-                    const dChoice = await context.callGenericPopup(dateHtml, context.POPUP_TYPE.TEXT, "", { okButton: false, cancelButton: "返回", onOpen: (p) => { $('.date-btn').on('click', function() { p.complete(parseInt($(this).data('idx')) + 2000); }); } });
+                    const dChoice = await context.callGenericPopup(dateHtml, context.POPUP_TYPE.TEXT, "", { okButton: false, cancelButton: "返回", allowVerticalScrolling: true, onOpen: (p) => { $('.date-btn').on('click', function() { p.complete(parseInt($(this).data('idx')) + 2000); }); } });
                     if (dChoice >= 2000) await showBookmarksUI(dateGroups[dateKeys[dChoice - 2000]].items, `日期收藏: ${dateKeys[dChoice - 2000]}`);
                 }
                 break;
@@ -479,7 +481,7 @@ async function openMainMenu() {
                 while(exportSubMenuRunning) {
                     const exportHtml = `<div class="bkm-list-container"><h3 class="bkm-title">📤 导出与备份</h3><div class="bkm-flex-col"><button id="exp-json" class="bkm-btn highlight">🗄️ 导出完整备份 (JSON)</button><button id="exp-copy" class="bkm-btn">📋 复制全部到剪贴板 (TXT)</button><hr style="border:0; border-top:1px dashed var(--SmartThemeBorderColor); margin: 5px 0;"><button id="exp-all" class="bkm-btn">📄 导出全部 (TXT)</button><button id="exp-char" class="bkm-btn">👤 按角色导出 (TXT)</button><button id="exp-date" class="bkm-btn">📅 按日期导出 (TXT)</button><button id="exp-range" class="bkm-btn">🔢 按范围导出 (TXT)</button><button id="exp-select" class="bkm-btn">☑️ 自由勾选导出 (TXT)</button></div></div>`;
                     const exportTypeChoice = await context.callGenericPopup(exportHtml, context.POPUP_TYPE.TEXT, "", {
-                        okButton: false, cancelButton: "返回主菜单",
+                        okButton: false, cancelButton: "返回主菜单", allowVerticalScrolling: true,
                         onOpen: (popup) => { $('#exp-all').on('click', () => popup.complete(1)); $('#exp-char').on('click', () => popup.complete(2)); $('#exp-date').on('click', () => popup.complete(3)); $('#exp-range').on('click', () => popup.complete(4)); $('#exp-select').on('click', () => popup.complete(5)); $('#exp-json').on('click', () => popup.complete(6)); $('#exp-copy').on('click', () => popup.complete(7)); }
                     });
 
@@ -565,7 +567,7 @@ async function openMainMenu() {
                 };
 
                 await context.callGenericPopup(importHtml, context.POPUP_TYPE.TEXT, "", {
-                    okButton: false, cancelButton: "取消",
+                    okButton: false, cancelButton: "取消", allowVerticalScrolling: true,
                     onOpen: (popup) => {
                         $('#bkm-import-paste').on('click', async () => { const pastedText = $('#bkm-import-textarea').val(); if (!pastedText.trim()) toastr.warning("文本框为空！"); else { await handleImportData(pastedText, importMode); popup.complete(1); } });
                         $('#bkm-import-file').on('click', () => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json,.txt'; input.onchange = e => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (re) => { await handleImportData(re.target.result, importMode); popup.complete(1); }; reader.readAsText(file); }; input.click(); });
