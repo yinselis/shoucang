@@ -5,8 +5,9 @@ const MODULE_NAME = 'global_bookmarks_pro';
 const defaultSettings = {
     showFloatingButton: true,
     filterTags: 'think',
-    removeBeforeClosing: true, // 默认开启暴力过滤
-    bookmarks:[]
+    removeBeforeClosing: true,
+    bookmarks:[],
+    fabPosition: { top: '40%', left: '80%' } // 默认初始位置在屏幕偏右上
 };
 
 function escapeHtml(text) {
@@ -77,7 +78,7 @@ async function takeScreenshot(bm) {
     toastr.info("📸 正在绘制排版，请稍候...");
     if (typeof window.html2canvas === 'undefined') {
         try { await $.getScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"); } 
-        catch (e) { return toastr.error("❌ 无法加载截图引擎，请检查网络。"); }
+        catch (e) { return toastr.error("❌ 无法加载引擎。"); }
     }
 
     const safeText = applyTagFilter(bm.text || "*(内容丢失)*");
@@ -190,6 +191,7 @@ async function showBookmarksList() {
     });
 }
 
+// 悬浮球可见性控制
 function toggleFAB() {
     if (extensionSettings[MODULE_NAME].showFloatingButton) {
         $('#bkm-fab-container').css('display', 'flex');
@@ -198,10 +200,72 @@ function toggleFAB() {
     }
 }
 
+// 为悬浮球注入【拖拽移动】逻辑
+function makeDraggable(fab) {
+    let isDragging = false;
+    let startX, startY, initialTop, initialLeft;
+    const dragThreshold = 8; // 滑动超过 8 像素视为拖动，否则是点击
+
+    fab.on('mousedown touchstart', function(e) {
+        isDragging = false;
+        const ev = e.originalEvent;
+        startX = ev.touches ? ev.touches[0].clientX : ev.clientX;
+        startY = ev.touches ? ev.touches[0].clientY : ev.clientY;
+        
+        const rect = this.getBoundingClientRect();
+        initialTop = rect.top;
+        initialLeft = rect.left;
+
+        $(document).on('mousemove.bkmDrag touchmove.bkmDrag', function(eMove) {
+            const evMove = eMove.originalEvent;
+            const currentX = evMove.touches ? evMove.touches[0].clientX : evMove.clientX;
+            const currentY = evMove.touches ? evMove.touches[0].clientY : evMove.clientY;
+            
+            const dx = currentX - startX;
+            const dy = currentY - startY;
+
+            if (!isDragging && (Math.abs(dx) > dragThreshold || Math.abs(dy) > dragThreshold)) {
+                isDragging = true;
+            }
+
+            if (isDragging) {
+                eMove.preventDefault(); // 拖动悬浮球时阻止屏幕乱跑
+                fab.css({
+                    top: initialTop + dy + 'px',
+                    left: initialLeft + dx + 'px',
+                    bottom: 'auto',
+                    right: 'auto'
+                });
+            }
+        });
+
+        $(document).on('mouseup.bkmDrag touchend.bkmDrag', function() {
+            $(document).off('.bkmDrag');
+            if (isDragging) {
+                // 拖动结束，记住新位置
+                extensionSettings[MODULE_NAME].fabPosition = { top: fab.css('top'), left: fab.css('left') };
+                context.saveSettingsDebounced();
+            }
+            // 延迟重置拖拽状态，防止触发点击事件
+            setTimeout(() => { isDragging = false; }, 50);
+        });
+    });
+
+    fab.on('click', function(e) {
+        // 如果是拖动行为，直接拦截点击
+        if (isDragging) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        openMainMenu();
+    });
+}
+
 async function initUI() {
     loadSettings();
 
-    // 动态匹配你的 Github 仓库名字 (shoucang) 确保能找到设置文件
+    // 加载设置面板
     const possiblePaths =[
         '/scripts/extensions/third-party/shoucang/settings.html',
         '/scripts/extensions/third-party/SillyTavern-shoucang/settings.html',
@@ -233,14 +297,20 @@ async function initUI() {
         });
     }
 
-    // 独立注入悬浮球，不再受前面的加载影响
+    // 注入可拖拽的悬浮球
     if ($('#bkm-fab-container').length === 0) {
         $('body').append(`
-            <div id="bkm-fab-container" class="has-tooltip" data-tooltip="全局收藏夹">
+            <div id="bkm-fab-container" class="has-tooltip" data-tooltip="全局收藏夹 (可拖动)">
                 <i class="fa-solid fa-star"></i>
             </div>
         `);
-        $('#bkm-fab-container').on('click', openMainMenu);
+        const fab = $('#bkm-fab-container');
+        
+        // 恢复之前保存的位置
+        const pos = extensionSettings[MODULE_NAME].fabPosition;
+        fab.css({ top: pos.top, left: pos.left });
+
+        makeDraggable(fab);
     }
     toggleFAB();
 

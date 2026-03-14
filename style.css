@@ -1,8 +1,6 @@
-/* 悬浮球样式：专为手机端优化，提升 z-index 防止被遮挡，拉高 bottom 防键盘 */
+/* 悬浮球样式：解除限制，支持 JS 全屏自由拖拽 */
 #bkm-fab-container {
     position: fixed;
-    bottom: 120px; /* 默认高度 */
-    right: 20px;
     width: 48px;
     height: 48px;
     border-radius: 50%;
@@ -14,22 +12,15 @@
     font-size: 22px;
     cursor: pointer;
     box-shadow: 0 4px 15px rgba(0,0,0,0.6);
-    z-index: 999999 !important; /* 突破天际的层级，保证盖在最上面 */
-    opacity: 0.85; /* 略微透明，防止太挡字 */
-    transition: transform 0.2s ease, opacity 0.2s;
+    z-index: 9999999 !important; /* 突破天际的层级 */
+    opacity: 0.85; 
+    transition: opacity 0.2s;
+    touch-action: none; /* 关键：防止手机拖动时导致整个网页滚动 */
 }
 
-#bkm-fab-container:hover {
-    transform: scale(1.1);
+#bkm-fab-container:hover, #bkm-fab-container:active {
     opacity: 1;
-}
-
-/* 针对手机小屏幕进一步拉高悬浮球，避开聊天框和按键 */
-@media screen and (max-width: 800px) {
-    #bkm-fab-container {
-        bottom: 15vh; /* 动态适配手机高度，通常在屏幕下方的15%位置 */
-        right: 15px;
-    }
+    transform: scale(1.05);
 }
 
 /* 弹出菜单样式库 */
