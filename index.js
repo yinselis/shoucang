@@ -58,7 +58,7 @@ function loadSettings() {
     }
 }
 
-// ================= 【完美融合酒馆助手原生 API 的导回系统】 =================
+// ================= 【纯血统原生 API 导回系统】 =================
 async function restoreBookmarkToChat(bm) {
     try {
         const lastMessageId = context.chat.length - 1;
@@ -86,20 +86,42 @@ async function restoreBookmarkToChat(bm) {
         const isUser = (bm.role || "").toLowerCase() === 'user' || bm.role === (context.name1 || "User");
         const bmCharName = isUser ? context.name1 : (bm.char || "AI");
 
-        // 核心魔法 1：使用酒馆原生发消息 API（完美解决不在末尾显示的问题）
+        // 核心魔法 1：使用官方扩展 API 追加新消息（完美解决找不到函数且界面不刷新的问题）
         const appendNewMessage = async () => {
-            if (typeof window.createChatMessages === 'function') {
-                await window.createChatMessages([{
-                    role: isUser ? 'user' : 'assistant',
-                    name: isUser ? undefined : bmCharName,
-                    message: safeText
-                }], { refresh: 'affected' });
-            } else {
-                toastr.error("❌ 找不到原生创建消息函数，请更新酒馆版本。");
+            // 构造标准消息对象
+            const newMsg = {
+                name: bmCharName,
+                is_user: isUser,
+                is_name: !isUser, // AI 需要这个标识
+                is_system: false,
+                send_date: Date.now(),
+                mes: safeText,
+                extra: {},
+                swipes: [safeText],
+                swipe_id: 0,
+                swipe_info: [{ send_date: Date.now(), extra: { bookmark_restored: true } }]
+            };
+
+            // 1. 压入底层数组
+            context.chat.push(newMsg);
+            
+            // 2. 强制保存到文件
+            if (typeof context.saveChat === 'function') await context.saveChat();
+            
+            // 3. 调用官方 UI 渲染函数，生成最新气泡
+            if (typeof context.addOneMessage === 'function') {
+                context.addOneMessage(newMsg);
+            } else if (typeof context.printMessages === 'function') {
+                context.printMessages(); // 备用方案
+            }
+            
+            // 4. 滚动到底部
+            if (typeof context.scrollChatToBottom === 'function') {
+                context.scrollChatToBottom();
             }
         };
 
-        // 核心魔法 2：使用酒馆助手里的原生重绘 API（完美解决塞入分页后没反应的问题）
+        // 核心魔法 2：使用官方扩展 API 重绘单层楼（塞入分页用）
         const injectSwipeToFloor = async (targetFloor) => {
             const targetMsg = context.chat[targetFloor];
             if (!targetMsg) return toastr.error("❌ 找不到目标楼层！");
@@ -118,12 +140,10 @@ async function restoreBookmarkToChat(bm) {
                 targetMsg.mes = safeText;
             }
 
-            await context.saveChat();
+            if (typeof context.saveChat === 'function') await context.saveChat();
             
-            // 调用酒馆助手里证明有效的原生 UI 刷新代码
-            if (typeof window.refreshOneMessage === 'function') {
-                await window.refreshOneMessage(targetFloor);
-            } else if (typeof context.updateMessageBlock === 'function') {
+            // 使用 context 提供的方法而不是 window 上的方法
+            if (typeof context.updateMessageBlock === 'function') {
                 context.updateMessageBlock(targetFloor, targetMsg);
             }
             return targetMsg;
@@ -133,9 +153,9 @@ async function restoreBookmarkToChat(bm) {
         if (choice === 1) {
             const targetFloor = bm.floor;
             if (targetFloor > lastMessageId) {
-                // 如果楼层被删除了（比如只有8楼，要导回9楼），直接当作新消息发送！
+                // 如果楼层被删除了（例如当前只有8楼，要恢复到9楼），当作新消息直接追加！
                 await appendNewMessage();
-                toastr.success(`✅ 检测到原楼层已删除，已在末尾为您重新生成！`);
+                toastr.success(`✅ 检测到原楼层已被删除，已在末尾为您重新生成！`);
             } else {
                 const targetMsg = context.chat[targetFloor];
                 if (targetMsg.is_user !== isUser) {
