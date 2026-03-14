@@ -21,7 +21,7 @@
     transform: scale(0.95);
 }
 
-/* 基础容器 - 取消 max-height 和 overflow，让酒馆原生的底部返回按钮永远悬浮在屏幕最下方 */
+/* 基础容器 */
 .bkm-list-container {
     padding: 10px 5px;
     width: 100%;
@@ -63,15 +63,12 @@
     box-sizing: border-box;
 }
 
-/* 九宫格大按钮 */
 .bkm-menu-btn { flex-direction: column; gap: 8px; }
 .bkm-menu-btn i { font-size: 1.3em; }
 .bkm-menu-btn.full-width { grid-column: 1 / -1; flex-direction: row; justify-content: center; }
 
-/* 普通行按钮 */
 .bkm-btn { flex-direction: row; justify-content: flex-start; padding: 12px 15px; }
 
-/* 高亮样式 */
 .bkm-menu-btn.highlight, .bkm-btn.highlight { 
     border-color: var(--SmartThemeQuoteColor); 
     color: var(--SmartThemeQuoteColor); 
@@ -93,6 +90,7 @@
     text-align: left !important;
 }
 
+/* ================== 【本次核心修复】 ================== */
 .bkm-group-header {
     background: var(--SmartThemeButtonBackgroundColor);
     padding: 12px 15px;
@@ -100,13 +98,26 @@
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid var(--SmartThemeBorderColor);
+    gap: 10px; /* 在名字和时间之间增加间距 */
+}
+
+/* 名字和楼层的容器 */
+.bkm-group-info {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* 名字和楼层标签之间的间距 */
+    flex-grow: 1; /* 占据尽可能多的空间 */
+    flex-shrink: 1; /* 允许被压缩 */
+    min-width: 0; /* 允许压缩的关键！ */
 }
 
 .bkm-avatar-name {
     color: var(--SmartThemeUserColor);
     font-weight: bold;
     font-size: 1.05em;
-    margin-right: 8px;
+    white-space: nowrap; /* 强制不换行 */
+    overflow: hidden; /* 隐藏溢出部分 */
+    text-overflow: ellipsis; /* 显示 ... */
 }
 
 .bkm-floor-badge {
@@ -115,12 +126,18 @@
     padding: 2px 8px;
     border-radius: 20px;
     font-size: 0.8em;
+    white-space: nowrap; /* 强制不换行 */
+    flex-shrink: 0; /* 不允许自身被压缩 */
 }
 
+/* 时间戳 */
 .bkm-time-info {
     font-size: 0.8em;
     color: var(--SmartThemeBodyColor);
+    flex-shrink: 0; /* 不允许被压缩 */
+    white-space: nowrap;
 }
+/* ================== 【修复结束】 ================== */
 
 /* 折叠栏与预览 */
 .bkm-details { width: 100%; text-align: left !important; }
@@ -161,7 +178,7 @@
 .bkm-version-badge.single { border-color: var(--SmartThemeBorderColor); color: var(--SmartThemeBodyColor); }
 .bkm-details[open] .bkm-version-badge i { transform: rotate(180deg); }
 
-/* --- 恢复的左右箭头切换控制条 --- */
+/* --- 左右箭头切换控制条 --- */
 .bkm-swipe-controls {
     display: flex;
     align-items: center;
