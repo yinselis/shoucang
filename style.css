@@ -23,13 +23,15 @@
     transform: scale(1.05);
 }
 
-/* 弹出菜单样式库 */
+/* 弹出菜单样式库（完美还原你截图里的九宫格样式） */
 .bkm-container { padding: 5px; text-align: center; }
 .bkm-title { margin-top: 0; color: var(--SmartThemeQuoteColor, #ffcc00); font-size: 1.2em; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.3)); padding-bottom: 10px; text-align: left; }
-.bkm-btn { width: 100%; padding: 12px 15px; font-size: 14px; border-radius: 10px; border: 1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.3)); background: var(--SmartThemeButtonBackgroundColor, rgba(128,128,128,0.05)); color: var(--SmartThemeBodyColor, inherit); text-align: left; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 10px; box-sizing: border-box; }
+.bkm-btn { width: 100%; padding: 12px 15px; font-size: 14px; border-radius: 10px; border: 1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.3)); background: var(--SmartThemeButtonBackgroundColor, rgba(128,128,128,0.05)); color: var(--SmartThemeBodyColor, inherit); text-align: left; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 10px; box-sizing: border-box; }
 .bkm-btn:hover { background: var(--SmartThemeBlurTintColor, rgba(128,128,128,0.15)); transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-.bkm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.bkm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
 .bkm-flex-col { display: flex; flex-direction: column; gap: 10px; }
 .bkm-card { border: 1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.3)); border-radius: 10px; padding: 12px; margin-bottom: 15px; background: var(--SmartThemeBlurTintColor, rgba(128,128,128,0.05)); width: 100%; box-sizing: border-box; text-align: left; }
 .bkm-action-btn { background: transparent; border: 1px solid var(--SmartThemeQuoteColor, #ffcc00); color: var(--SmartThemeQuoteColor, #ffcc00); border-radius: 5px; padding: 4px 8px; font-size: 0.85em; cursor: pointer; transition: all 0.2s; font-weight: bold; }
 .bkm-action-btn:hover { background: var(--SmartThemeQuoteColor, #ffcc00); color: var(--SmartThemeBackgroundColor, #000); }
+.bkm-action-btn.restore { border-color: var(--SmartThemeLinkColor, #00ccff); color: var(--SmartThemeLinkColor, #00ccff); }
+.bkm-action-btn.restore:hover { background: var(--SmartThemeLinkColor, #00ccff); color: var(--SmartThemeBackgroundColor, #000); }
