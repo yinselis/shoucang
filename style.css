@@ -95,52 +95,51 @@
     background: var(--SmartThemeButtonBackgroundColor);
     padding: 12px 15px;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px; /* 在名字和时间之间增加间距 */
+    flex-direction: column; /* 【改动】改为垂直排列，分成上下两行 */
+    align-items: flex-start;
+    gap: 8px; /* 上下行之间的间距 */
 }
 
-/* 名字和楼层的容器 - 它会占据所有剩余空间 */
+/* 第一行：名字和楼层的容器 */
 .bkm-group-info {
     display: flex;
-    align-items: center;
-    gap: 8px; /* 名字和楼层标签之间的间距 */
-    flex-grow: 1; /* 占据尽可能多的空间 */
-    flex-shrink: 1; /* 允许被压缩 */
-    min-width: 0; /* 允许压缩的关键！这使得名字可以被省略 */
+    align-items: flex-start; /* 顶部对齐，防止名字变多行时楼层掉下来 */
+    width: 100%; /* 占满整行宽度 */
+    gap: 8px; 
 }
 
-/* 角色名字 - 现在只在必要时才省略 */
+/* 角色名字 - 解除限制，让它不再被遮挡 */
 .bkm-avatar-name {
     color: var(--SmartThemeUserColor);
     font-weight: bold;
     font-size: 1.05em;
-    white-space: nowrap; /* 强制不换行 */
-    overflow: hidden; /* 隐藏溢出部分 */
-    text-overflow: ellipsis; /* 显示 ... */
-    /* 移除固定的flex-basis，让它自然伸缩 */
+    white-space: normal; /* 【改动】允许自然换行，不再强制一行 */
+    word-break: break-word; /* 防止奇怪的超长无空格字符撑破排版 */
+    /* 已经去掉了 overflow: hidden 和 text-overflow: ellipsis */
 }
 
-/* 楼层标签 - 固定宽度，不压缩 */
+/* 楼层标签 - 固定在右上角 */
 .bkm-floor-badge {
     background: var(--SmartThemeBorderColor);
     color: var(--SmartThemeBodyColor);
     padding: 2px 8px;
     border-radius: 20px;
     font-size: 0.8em;
-    white-space: nowrap; /* 强制不换行 */
-    flex-shrink: 0; /* 不允许自身被压缩 */
+    white-space: nowrap; 
+    flex-shrink: 0; 
+    margin-left: auto; /* 【关键魔法】自动把楼层推挤到这行的最右边！ */
+    margin-top: 2px; /* 稍微往下压一点点，跟名字中心对齐 */
 }
 
-/* 时间戳 - 固定宽度，不压缩 */
+/* 时间戳 - 独立作为第二行 */
 .bkm-time-info {
     font-size: 0.8em;
     color: var(--SmartThemeBodyColor);
-    flex-shrink: 0; /* 不允许被压缩 */
     white-space: nowrap;
+    align-self: flex-start; /* 时间显示在第二行的左侧。如果你喜欢时间在右下角，可以改成 flex-end */
+    opacity: 0.8; /* 稍微变淡一点，突出主次感 */
 }
 /* ================== 【修复结束】 ================== */
-
 
 /* 折叠栏与预览 */
 .bkm-details { width: 100%; text-align: left !important; }
