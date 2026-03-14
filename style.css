@@ -97,20 +97,20 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--SmartThemeBorderColor);
     gap: 10px; /* 在名字和时间之间增加间距 */
 }
 
-/* 名字和楼层的容器 */
+/* 名字和楼层的容器 - 它会占据所有剩余空间 */
 .bkm-group-info {
     display: flex;
     align-items: center;
     gap: 8px; /* 名字和楼层标签之间的间距 */
     flex-grow: 1; /* 占据尽可能多的空间 */
     flex-shrink: 1; /* 允许被压缩 */
-    min-width: 0; /* 允许压缩的关键！ */
+    min-width: 0; /* 允许压缩的关键！这使得名字可以被省略 */
 }
 
+/* 角色名字 - 现在只在必要时才省略 */
 .bkm-avatar-name {
     color: var(--SmartThemeUserColor);
     font-weight: bold;
@@ -118,8 +118,10 @@
     white-space: nowrap; /* 强制不换行 */
     overflow: hidden; /* 隐藏溢出部分 */
     text-overflow: ellipsis; /* 显示 ... */
+    /* 移除固定的flex-basis，让它自然伸缩 */
 }
 
+/* 楼层标签 - 固定宽度，不压缩 */
 .bkm-floor-badge {
     background: var(--SmartThemeBorderColor);
     color: var(--SmartThemeBodyColor);
@@ -130,7 +132,7 @@
     flex-shrink: 0; /* 不允许自身被压缩 */
 }
 
-/* 时间戳 */
+/* 时间戳 - 固定宽度，不压缩 */
 .bkm-time-info {
     font-size: 0.8em;
     color: var(--SmartThemeBodyColor);
@@ -138,6 +140,7 @@
     white-space: nowrap;
 }
 /* ================== 【修复结束】 ================== */
+
 
 /* 折叠栏与预览 */
 .bkm-details { width: 100%; text-align: left !important; }
@@ -240,7 +243,7 @@
 .bkm-icon-btn.shot { color: var(--SmartThemeQuoteColor); }
 .bkm-icon-btn:active { background: currentColor; color: var(--SmartThemeBackgroundColor) !important; }
 
-/* 渲染文本区 (修复了居中问题) */
+/* 渲染文本区 */
 .bkm-rendered-text, .bkm-rendered-text .mes_text {
     font-size: 1em;
     line-height: 1.6;
