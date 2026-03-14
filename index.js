@@ -58,20 +58,17 @@ function loadSettings() {
     }
 }
 
-// ================= 【本次核心大改：超智能导回系统】 =================
+// ================= 【完美融合酒馆助手原生 API 的导回系统】 =================
 async function restoreBookmarkToChat(bm) {
     try {
         const lastMessageId = context.chat.length - 1;
         let optionsHtml = `<div class="bkm-list-container"><h3 class="bkm-title">↩️ 请选择导回方式</h3><div class="bkm-flex-col">`;
         
-        // 选项 1：智能恢复 (永远显示，自动判断情况)
         if (bm.floor !== undefined) {
             optionsHtml += `<button id="res-orig" class="bkm-btn highlight" style="font-weight:bold;">🔙 智能恢复到第 ${bm.floor} 楼 (推荐)</button>`;
         }
-        
-        // 选项 2 和 3：手动控制
         optionsHtml += `<button id="res-new" class="bkm-btn">🆕 作为全新消息发送到聊天最末尾</button>`;
-        optionsHtml += `<button id="res-swipe" class="bkm-btn">📖 作为隐藏分页塞入某一层 (防刷屏)</button>`;
+        optionsHtml += `<button id="res-swipe" class="bkm-btn">📖 作为隐藏分页塞入指定楼层 (防刷屏)</button>`;
         optionsHtml += `</div></div>`;
 
         const choice = await context.callGenericPopup(optionsHtml, context.POPUP_TYPE.TEXT, "", {
@@ -89,109 +86,87 @@ async function restoreBookmarkToChat(bm) {
         const isUser = (bm.role || "").toLowerCase() === 'user' || bm.role === (context.name1 || "User");
         const bmCharName = isUser ? context.name1 : (bm.char || "AI");
 
-        // 统一的新消息对象模板
-        const createNewMsgObj = () => ({
-            name: bmCharName,
-            is_user: isUser,
-            is_system: false,
-            send_date: Date.now(),
-            mes: safeText,
-            swipes: [safeText],
-            swipe_id: 0
-        });
-
-        // 刷新聊天界面的核心函数
-        const refreshChatUI = () => {
-            context.saveChat();
-            if (typeof context.reloadCurrentChat === 'function') {
-                context.reloadCurrentChat();
+        // 核心魔法 1：使用酒馆原生发消息 API（完美解决不在末尾显示的问题）
+        const appendNewMessage = async () => {
+            if (typeof window.createChatMessages === 'function') {
+                await window.createChatMessages([{
+                    role: isUser ? 'user' : 'assistant',
+                    name: isUser ? undefined : bmCharName,
+                    message: safeText
+                }], { refresh: 'affected' });
             } else {
-                location.reload();
+                toastr.error("❌ 找不到原生创建消息函数，请更新酒馆版本。");
             }
         };
 
-        // 【智能恢复分支】
+        // 核心魔法 2：使用酒馆助手里的原生重绘 API（完美解决塞入分页后没反应的问题）
+        const injectSwipeToFloor = async (targetFloor) => {
+            const targetMsg = context.chat[targetFloor];
+            if (!targetMsg) return toastr.error("❌ 找不到目标楼层！");
+
+            if (!targetMsg.swipes) targetMsg.swipes = [targetMsg.mes || ""];
+            if (!targetMsg.swipe_info) targetMsg.swipe_info = [targetMsg.extra || {}];
+
+            const existingIndex = targetMsg.swipes.indexOf(safeText);
+            if (existingIndex !== -1) {
+                targetMsg.swipe_id = existingIndex;
+                targetMsg.mes = safeText;
+            } else {
+                targetMsg.swipes.push(safeText);
+                targetMsg.swipe_info.push({ send_date: Date.now(), extra: { bookmark_restored: true } });
+                targetMsg.swipe_id = targetMsg.swipes.length - 1;
+                targetMsg.mes = safeText;
+            }
+
+            await context.saveChat();
+            
+            // 调用酒馆助手里证明有效的原生 UI 刷新代码
+            if (typeof window.refreshOneMessage === 'function') {
+                await window.refreshOneMessage(targetFloor);
+            } else if (typeof context.updateMessageBlock === 'function') {
+                context.updateMessageBlock(targetFloor, targetMsg);
+            }
+            return targetMsg;
+        };
+
+        // 【智能恢复】
         if (choice === 1) {
             const targetFloor = bm.floor;
-            
             if (targetFloor > lastMessageId) {
-                // 场景 A：该楼层被删除了（比如删了第9楼，现在只有8楼）。直接补在最后面。
-                context.chat.push(createNewMsgObj());
-                refreshChatUI();
-                return toastr.success(`✅ 检测到原楼层已删除，已为您重新生成了完整的第 ${context.chat.length - 1} 楼！`);
+                // 如果楼层被删除了（比如只有8楼，要导回9楼），直接当作新消息发送！
+                await appendNewMessage();
+                toastr.success(`✅ 检测到原楼层已删除，已在末尾为您重新生成！`);
             } else {
-                // 场景 B：楼层存在。看看是谁的发言。
                 const targetMsg = context.chat[targetFloor];
-                const targetIsUser = targetMsg.is_user;
-                
-                if (targetIsUser !== isUser) {
-                    // 角色冲突！说明这层楼因为你的增删操作，被别人占用了。
+                if (targetMsg.is_user !== isUser) {
                     const confirmInject = await context.callGenericPopup(
-                        `<div style="text-align:left;">⚠️ <b>角色不匹配</b><br><br>您想恢复的是 <b>${bmCharName}</b> 的消息，但现在的第 ${targetFloor} 楼是 <b>${getRealCharName(targetMsg)}</b>。<br><br>要强行在此处<b>插入一条全新气泡</b>（并将后面的消息往下推）吗？</div>`,
-                        context.POPUP_TYPE.CONFIRM, "", { okButton: "强行插队", cancelButton: "取消" }
+                        `<div style="text-align:left;">⚠️ <b>角色不匹配</b><br><br>现在的第 ${targetFloor} 楼是别人占用的。<br>强行插入会导致错乱。建议取消并选择【作为全新消息发送】。</div>`,
+                        context.POPUP_TYPE.CONFIRM, "", { okButton: "我要强行替换这层楼", cancelButton: "取消" }
                     );
-                    if (confirmInject === context.POPUP_RESULT.AFFIRMATIVE) {
-                        context.chat.splice(targetFloor, 0, createNewMsgObj()); // 魔法：酒馆底层插队函数
-                        refreshChatUI();
-                        toastr.success(`✅ 已成功在第 ${targetFloor} 楼插队生成新消息！`);
-                    }
-                } else {
-                    // 角色相同。作为历史分页塞进去。
-                    if (!targetMsg.swipes) targetMsg.swipes = [targetMsg.mes || ""];
-                    const existingIndex = targetMsg.swipes.indexOf(safeText);
-                    
-                    if (existingIndex !== -1) {
-                        // 终极优化：如果你已经塞进去过了，不再报错，直接帮你翻到那一页！
-                        targetMsg.swipe_id = existingIndex;
-                        targetMsg.mes = safeText;
-                        context.updateMessageBlock(targetFloor, targetMsg);
-                        context.saveChat();
-                        return toastr.success(`✨ 已自动为您切换回第 ${targetFloor} 楼的对应分页！`);
-                    }
-                    
-                    targetMsg.swipes.push(safeText);
-                    targetMsg.swipe_id = targetMsg.swipes.length - 1;
-                    targetMsg.mes = safeText;
-                    context.updateMessageBlock(targetFloor, targetMsg);
-                    context.saveChat();
-                    toastr.success(`✅ 已作为第 ${targetMsg.swipes.length} 页完美恢复到第 ${targetFloor} 楼！`);
+                    if (confirmInject !== context.POPUP_RESULT.AFFIRMATIVE) return;
                 }
+                const updatedMsg = await injectSwipeToFloor(targetFloor);
+                toastr.success(`✅ 已成功恢复到第 ${targetFloor} 楼 (第 ${updatedMsg.swipe_id + 1} 页)！`);
             }
         } 
-        // 【纯净新建分支】
+        // 【纯净新建】
         else if (choice === 2) {
-            context.chat.push(createNewMsgObj());
-            refreshChatUI();
+            await appendNewMessage();
             toastr.success(`✅ 已作为新消息追加到末尾！`);
         } 
-        // 【手动塞入分页分支】
+        // 【手动塞入分页】
         else if (choice === 3) {
             const input = await context.callGenericPopup(`请输入要塞入的楼层号 (0 - ${lastMessageId})：`, context.POPUP_TYPE.INPUT, "", { cancelButton: "取消" });
             if (!input) return;
             const tf = parseInt(input);
             if (isNaN(tf) || tf < 0 || tf > lastMessageId) return toastr.error(`❌ 无效的楼层号！`);
             
-            const targetMsg = context.chat[tf];
-            if (!targetMsg.swipes) targetMsg.swipes = [targetMsg.mes || ""];
-            const existingIndex = targetMsg.swipes.indexOf(safeText);
-            if (existingIndex !== -1) {
-                targetMsg.swipe_id = existingIndex;
-                targetMsg.mes = safeText;
-                context.updateMessageBlock(tf, targetMsg);
-                context.saveChat();
-                return toastr.success(`✨ 已自动为您切换到该内容的对应分页！`);
-            }
-            
-            targetMsg.swipes.push(safeText);
-            targetMsg.swipe_id = targetMsg.swipes.length - 1;
-            targetMsg.mes = safeText;
-            context.updateMessageBlock(tf, targetMsg);
-            context.saveChat();
-            toastr.success(`✅ 已无声无息地塞入第 ${tf} 楼的隐藏分页中！`);
+            const updatedMsg = await injectSwipeToFloor(tf);
+            toastr.success(`✅ 已无声无息地塞入第 ${tf} 楼 (第 ${updatedMsg.swipe_id + 1} 页)！`);
         }
     } catch (e) { 
         console.error(e);
-        toastr.error("❌ 导回失败！"); 
+        toastr.error("❌ 导回失败！请查看控制台。"); 
     }
 }
 // =========================================================
