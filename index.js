@@ -4,7 +4,7 @@ const { eventSource, event_types, extensionSettings, SlashCommandParser, SlashCo
 const MODULE_NAME = 'global_bookmarks_pro';
 const defaultSettings = {
     showFloatingButton: true,
-    filterTags: 'think',
+    filterTags: 'think,summary',
     removeBeforeClosing: true,
     bookmarks:[],
     fabPosition: { top: '30%', left: '85%' }
@@ -15,7 +15,12 @@ function escapeHtml(text) {
     return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
-// ================= 超级标签过滤逻辑 =================
+function getRealCharName(msg) {
+    if (msg.is_user) return context.name1 || 'User';
+    if (msg.name && msg.name !== 'SillyTavern System') return msg.name;
+    return context.name2 || 'AI';
+}
+
 function applyTagFilter(text) {
     if (!text) return text;
     let result = text;
@@ -53,11 +58,11 @@ function loadSettings() {
     }
 }
 
-// ================= 导回聊天功能 (照搬原版逻辑) =================
+// 导回聊天
 async function restoreBookmarkToChat(bm) {
     try {
         const lastMessageId = context.chat.length - 1;
-        let optionsHtml = `<div class="bkm-container"><h3 class="bkm-title">↩️ 请选择导回位置</h3><div class="bkm-flex-col">`;
+        let optionsHtml = `<div class="bkm-list-container"><h3 class="bkm-title">↩️ 请选择导回位置</h3><div class="bkm-flex-col">`;
         if (bm.floor !== undefined && bm.floor <= lastMessageId && bm.floor >= 0) {
             optionsHtml += `<button id="res-orig" class="bkm-btn bkm-btn-highlight">🔙 恢复到原楼层 (第 ${bm.floor} 楼)</button>`;
         }
@@ -112,7 +117,7 @@ async function restoreBookmarkToChat(bm) {
                 is_system: false,
                 send_date: Date.now(),
                 mes: safeText,
-                swipes: [safeText]
+                swipes:[safeText]
             });
             context.updateMessageBlock(context.chat.length - 1, context.chat[context.chat.length - 1]);
             context.saveChat();
@@ -121,53 +126,50 @@ async function restoreBookmarkToChat(bm) {
     } catch (e) { toastr.error("❌ 导回失败！"); }
 }
 
-// ================= 美化版长图截取 =================
+// 长图
 async function takeScreenshot(bm) {
     toastr.info("📸 正在绘制长图，请稍候...");
     if (typeof window.html2canvas === 'undefined') {
         try { await $.getScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"); } 
-        catch (e) { return toastr.error("❌ 无法加载截图引擎，请检查网络。"); }
+        catch (e) { return toastr.error("❌ 无法加载截图引擎。"); }
     }
 
     const safeText = applyTagFilter(bm.text || "*(内容丢失)*");
     const formattedText = typeof showdown !== 'undefined' ? new showdown.Converter().makeHtml(safeText) : escapeHtml(safeText);
     const initialChar = bm.char ? bm.char.charAt(0).toUpperCase() : 'A';
     
+    const bgCol = window.getComputedStyle(document.body).getPropertyValue('--SmartThemeBackgroundColor') || '#1a1b26';
+    const cardBg = window.getComputedStyle(document.body).getPropertyValue('--SmartThemeBlurTintColor') || 'rgba(30,30,46,0.95)';
+    const textCol = window.getComputedStyle(document.body).getPropertyValue('--SmartThemeBodyColor') || '#cdd6f4';
+    
     const container = document.createElement('div');
-    container.style.cssText = 'position:fixed; top:0; left:0; width:100%; max-width:600px; padding:20px; background: linear-gradient(135deg, #1e1e2e, #11111b); z-index:-9999; box-sizing:border-box; font-family: sans-serif;';
+    container.style.cssText = `position:fixed; top:0; left:0; width:100%; max-width:600px; padding:20px; background: ${bgCol}; z-index:-9999; box-sizing:border-box; font-family: sans-serif; text-align: left;`;
 
     container.innerHTML = `
-        <div style="background: rgba(49, 50, 68, 0.95); border-radius: 16px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05);">
-            <div style="display: flex; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
-                <div style="background: var(--SmartThemeQuoteColor, #cba6f7); color: #000; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 22px; margin-right: 15px;">
+        <div style="background: ${cardBg}; border-radius: 16px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); border: 1px solid rgba(128,128,128,0.2);">
+            <div style="display: flex; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(128,128,128,0.2); padding-bottom: 15px;">
+                <div style="background: var(--SmartThemeQuoteColor, #cba6f7); color: #fff; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 22px; margin-right: 15px;">
                     ${initialChar}
                 </div>
                 <div>
-                    <div style="color: #cdd6f4; font-weight: bold; font-size: 1.2em;">${escapeHtml(bm.char || "未知")}</div>
-                    <div style="color: #a6adc8; font-size: 0.85em; margin-top: 4px;">🕒 ${escapeHtml(bm.time)} | 💬 第 ${bm.floor !== undefined ? bm.floor : '?'} 楼</div>
+                    <div style="color: var(--SmartThemeUserColor, #cdd6f4); font-weight: bold; font-size: 1.2em;">${escapeHtml(bm.char || "未知")}</div>
+                    <div style="color: var(--SmartThemeBodyColor, #a6adc8); font-size: 0.85em; margin-top: 4px;">🕒 ${escapeHtml(bm.time)} | 💬 第 ${bm.floor !== undefined ? bm.floor : '?'} 楼</div>
                 </div>
             </div>
-            <div class="mes_text" style="color: #bac2de; font-size: 1.05em; line-height: 1.7; word-wrap: break-word;">${formattedText}</div>
+            <div class="mes_text" style="color: ${textCol}; font-size: 1.05em; line-height: 1.7; word-wrap: break-word; text-align: left !important;">${formattedText}</div>
         </div>
     `;
     document.body.appendChild(container);
 
     try {
         await new Promise(r => setTimeout(r, 600)); 
-        const canvas = await window.html2canvas(container, { backgroundColor: '#11111b', scale: window.devicePixelRatio > 1 ? window.devicePixelRatio : 2, useCORS: true, logging: false });
+        const canvas = await window.html2canvas(container, { backgroundColor: bgCol, scale: window.devicePixelRatio > 1 ? window.devicePixelRatio : 2, useCORS: true, logging: false });
         const url = canvas.toDataURL('image/png');
-        const imgHtml = `<div style="text-align:center; max-height: 80vh; overflow-y: auto;"><p style="color: var(--SmartThemeQuoteColor); font-weight: bold; margin-bottom: 15px;">✅ 生成成功！长按或右键保存</p><img src="${url}" style="max-width: 100%; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.5);" /></div>`;
+        const imgHtml = `<div style="text-align:center; max-height: 80vh; overflow-y: auto;"><p style="color: var(--SmartThemeQuoteColor); font-weight: bold; margin-bottom: 15px;">✅ 生成成功！长按图片保存</p><img src="${url}" style="max-width: 100%; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.3);" /></div>`;
         context.callGenericPopup(imgHtml, context.POPUP_TYPE.TEXT, "", { large: true, wide: true, okButton: false, cancelButton: "关闭" });
     } finally {
         document.body.removeChild(container);
     }
-}
-
-// ================= 数据保存逻辑 (修复名字抓取) =================
-function getRealCharName(msg) {
-    if (msg.is_user) return context.name1 || 'User';
-    if (msg.name && msg.name !== 'SillyTavern System') return msg.name;
-    return context.name2 || 'AI';
 }
 
 async function quickSaveLatest() {
@@ -178,11 +180,9 @@ async function quickSaveLatest() {
         const textToSave = (lastMsg.swipes && lastMsg.swipes.length > 0) ? lastMsg.swipes[lastMsg.swipe_id || 0] : lastMsg.mes;
         if (!textToSave || textToSave.trim() === "") return toastr.warning("消息为空。");
         
-        const realChar = getRealCharName(lastMsg);
-        
         extensionSettings[MODULE_NAME].bookmarks.push({ 
             time: new Date().toLocaleString(), 
-            char: realChar, 
+            char: getRealCharName(lastMsg), 
             role: lastMsg.is_user ? 'User' : 'AI', 
             text: textToSave, 
             floor: context.chat.length - 1, 
@@ -193,11 +193,10 @@ async function quickSaveLatest() {
     } catch (e) { toastr.error("❌ 收藏失败。"); }
 }
 
-// ================= 全新分组 UI (按楼层合并分页) =================
+// ================= 全新分组 UI (终极版：左右箭头切换 + 防止刷屏瀑布流) =================
 async function showBookmarksUI(bms, titleStr) {
     if (!bms || bms.length === 0) return toastr.info("📂 收藏夹是空的或没有匹配项。");
     
-    // 1. 核心还原：使用原脚本的 Map 逻辑对同聊天、同角色、同楼层进行分组
     const groupsMap = new Map();
     bms.forEach(bm => {
         const dateStr = bm.time ? bm.time.split(' ')[0] : 'unknown';
@@ -208,7 +207,6 @@ async function showBookmarksUI(bms, titleStr) {
         groupsMap.get(key).items.push(bm);
     });
     
-    // 将分组结果转为数组并倒序（最新收藏在前）
     const groupedBookmarks = Array.from(groupsMap.values()).reverse();
 
     let htmlContent = `<div class="bkm-list-container">`;
@@ -217,8 +215,6 @@ async function showBookmarksUI(bms, titleStr) {
     groupedBookmarks.forEach((group, gIndex) => {
         const floorText = group.floor !== undefined ? `第 ${group.floor} 楼` : `未知楼层`;
         const total = group.items.length;
-        
-        // 取第一条作为预览
         const firstText = applyTagFilter(group.items[0].text || "*(内容丢失)*");
         let previewText = escapeHtml(firstText.replace(/\n/g, ' ').substring(0, 35));
         if (firstText.length > 35) previewText += '...';
@@ -236,63 +232,79 @@ async function showBookmarksUI(bms, titleStr) {
             <details class="bkm-details">
                 <summary class="bkm-summary">
                     <div class="bkm-preview-box">
-                        <span class="bkm-preview-text">${previewText}</span>
-                        ${total > 1 ? `<span class="bkm-version-badge">${total}个版本 <i class="fa-solid fa-chevron-down"></i></span>` : `<span class="bkm-version-badge single">展开 <i class="fa-solid fa-chevron-down"></i></span>`}
+                        <span class="bkm-preview-text" id="bkm-preview-${gIndex}">${previewText}</span>
+                        <span class="bkm-version-badge ${total > 1 ? '' : 'single'}">
+                            ${total > 1 ? `${total}个版本 (点击展开)` : `展开详情`} <i class="fa-solid fa-chevron-down"></i>
+                        </span>
                     </div>
                 </summary>
                 
-                <div class="bkm-versions-list">`;
+                <div class="bkm-versions-list">
+                    ${total > 1 ? `
+                    <div class="bkm-swipe-controls">
+                        <button class="bkm-swipe-btn bkm-prev" data-gindex="${gIndex}">&lt;</button>
+                        <span id="bkm-counter-${gIndex}" style="font-weight:bold; font-size:1em; color:var(--SmartThemeBodyColor);">1 / ${total}</span>
+                        <button class="bkm-swipe-btn bkm-next" data-gindex="${gIndex}">&gt;</button>
+                    </div>` : ''}
+                    
+                    <div class="bkm-swipe-content-wrapper">`;
         
-        // 遍历该楼层下的所有分页版本
+        // 生成对应的内容，只有第一页默认显示
         group.items.forEach((item, iIndex) => {
             const safeItemText = applyTagFilter(item.text || "*(内容丢失)*");
             const formattedText = typeof showdown !== 'undefined' ? new showdown.Converter().makeHtml(safeItemText) : escapeHtml(safeItemText);
             
             htmlContent += `
-                    <div class="bkm-version-item">
-                        <div class="bkm-version-toolbar">
-                            <span class="bkm-version-label">版本 #${iIndex + 1}</span>
-                            <div class="bkm-btn-group">
-                                <button class="bkm-icon-btn restore bkm-restore-btn" data-gindex="${gIndex}" data-iindex="${iIndex}">
-                                    <i class="fa-solid fa-reply"></i> 导回
-                                </button>
-                                <button class="bkm-icon-btn shot bkm-shot-btn" data-gindex="${gIndex}" data-iindex="${iIndex}">
-                                    <i class="fa-solid fa-image"></i> 长图
-                                </button>
+                        <div id="bkm-content-${gIndex}-${iIndex}" style="display: ${iIndex === 0 ? 'block' : 'none'};">
+                            <div class="bkm-version-toolbar">
+                                <span class="bkm-version-label">当前版本：#${iIndex + 1}</span>
+                                <div class="bkm-btn-group">
+                                    <button class="bkm-icon-btn restore bkm-restore-btn" data-gindex="${gIndex}" data-iindex="${iIndex}"><i class="fa-solid fa-reply"></i> 导回</button>
+                                    <button class="bkm-icon-btn shot bkm-shot-btn" data-gindex="${gIndex}" data-iindex="${iIndex}"><i class="fa-solid fa-image"></i> 长图</button>
+                                </div>
                             </div>
-                        </div>
-                        <div class="mes_text bkm-rendered-text">${formattedText}</div>
-                    </div>`;
+                            <div class="mes_text bkm-rendered-text">${formattedText}</div>
+                        </div>`;
         });
         
-        htmlContent += `
-                </div>
-            </details>
-        </div>`;
+        htmlContent += `</div></div></details></div>`;
     });
     htmlContent += `</div>`;
 
     await context.callGenericPopup(htmlContent, context.POPUP_TYPE.TEXT, "", {
         large: true, wide: true, cancelButton: "返回", okButton: false, allowVerticalScrolling: true,
         onOpen: (popup) => {
-            // 事件绑定，通过 gIndex 和 iIndex 精准定位数据
-            $('.bkm-shot-btn').on('click', async function(e) { 
+            // 初始化每个分组的当前页码
+            const groupStates = {};
+            groupedBookmarks.forEach((g, idx) => groupStates[idx] = { current: 0, max: g.items.length, items: g.items });
+
+            // 绑定左右切换按钮
+            $('.bkm-prev, .bkm-next').on('click', function(e) {
                 e.preventDefault(); e.stopPropagation();
-                const gIdx = $(this).data('gindex');
-                const iIdx = $(this).data('iindex');
-                await takeScreenshot(groupedBookmarks[gIdx].items[iIdx]); 
+                const gIndex = $(this).data('gindex');
+                const dir = $(this).hasClass('bkm-next') ? 1 : -1;
+                const state = groupStates[gIndex];
+                
+                // 隐藏旧的，计算新的，显示新的
+                $(`#bkm-content-${gIndex}-${state.current}`).hide();
+                state.current = (state.current + dir + state.max) % state.max;
+                $(`#bkm-content-${gIndex}-${state.current}`).show();
+                $(`#bkm-counter-${gIndex}`).text(`${state.current + 1} / ${state.max}`);
+                
+                // 顺便更新外面闭合状态下显示的预览文字
+                const safeText = applyTagFilter(state.items[state.current].text || "");
+                let preview = escapeHtml(safeText.replace(/\n/g, ' ').substring(0, 35));
+                if (safeText.length > 35) preview += '...';
+                $(`#bkm-preview-${gIndex}`).text(preview);
             });
-            $('.bkm-restore-btn').on('click', async function(e) { 
-                e.preventDefault(); e.stopPropagation();
-                const gIdx = $(this).data('gindex');
-                const iIdx = $(this).data('iindex');
-                await restoreBookmarkToChat(groupedBookmarks[gIdx].items[iIdx]); 
-            });
+
+            $('.bkm-shot-btn').on('click', async function(e) { e.preventDefault(); e.stopPropagation(); await takeScreenshot(groupedBookmarks[$(this).data('gindex')].items[$(this).data('iindex')]); });
+            $('.bkm-restore-btn').on('click', async function(e) { e.preventDefault(); e.stopPropagation(); await restoreBookmarkToChat(groupedBookmarks[$(this).data('gindex')].items[$(this).data('iindex')]); });
         }
     });
 }
 
-// 多选管理 UI (用于删除等)
+// 多选 UI (删除/导出)
 async function showMultiSelectUI(items, config) {
     let htmlContent = `<div class="bkm-list-container">`;
     htmlContent += `<h3 class="bkm-title" style="color: ${config.color || 'var(--SmartThemeQuoteColor)'};">${config.title}</h3>`;
@@ -304,10 +316,10 @@ async function showMultiSelectUI(items, config) {
         <div class="bkm-group-card" style="padding:12px;">
             <div style="display:flex; align-items:flex-start; gap: 10px;">
                 <input type="checkbox" id="cb-${index}" class="bkm-sel-cb" data-value="${item.value}" style="width:20px; height:20px; margin-top:2px; flex-shrink:0;">
-                <label for="cb-${index}" style="font-size: 0.95em; flex: 1; line-height:1.4; word-break: break-all; margin:0;">${item.label}</label>
+                <label for="cb-${index}" style="font-size: 0.95em; flex: 1; line-height:1.4; word-break: break-all; margin:0; text-align: left;">${item.label}</label>
             </div>
             <details class="bkm-details" style="margin-top: 8px; margin-left: 30px;">
-                <summary style="font-size: 0.85em; color: var(--SmartThemeQuoteColor); opacity: 0.8;">(点击展开完整内容)</summary>
+                <summary style="font-size: 0.85em; color: var(--SmartThemeQuoteColor); text-align: left;">(点击展开完整内容)</summary>
                 <div class="mes_text bkm-rendered-text" style="margin-top: 8px;">${formattedFullText}</div>
             </details>
         </div>`;
@@ -327,6 +339,28 @@ async function showMultiSelectUI(items, config) {
     return null;
 }
 
+async function downloadData(content, filename, mimeType) {
+    try {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none'; a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
+        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+        toastr.success('📄 下载已开始！');
+    } catch (e) { toastr.error("❌ 下载失败。"); }
+}
+
+function generateTxtContent(bms) {
+    let txt = `=== 全局精选收藏夹 (共 ${bms.length} 条) ===\n\n`;
+    const sortedBms = [...bms].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
+    sortedBms.forEach((bm, i) => { 
+        const filteredText = applyTagFilter(bm.text || "");
+        txt += `[#${i+1}] 剧本: ${bm.char || "未知"} | 发送者: ${bm.role || "未知"} | 楼层: ${bm.floor !== undefined ? bm.floor : '未知'} | 时间: ${bm.time || "未知"}\n${filteredText}\n--------------------------------------------------\n\n`; 
+    });
+    return txt;
+}
+
 // ================= 主菜单 =================
 async function openMainMenu() {
     let keepRunning = true;
@@ -343,7 +377,8 @@ async function openMainMenu() {
                     <button id="btn-bkm-12" class="bkm-menu-btn full-width highlight"><i class="fa-solid fa-folder-open"></i> 浏览所有收藏 (可导回)</button>
                     
                     <button id="btn-bkm-18" class="bkm-menu-btn" style="color:#f38ba8;"><i class="fa-solid fa-trash-can"></i> 管理与删除</button>
-                    <button id="btn-bkm-13" class="bkm-menu-btn"><i class="fa-solid fa-file-export"></i> 导出备份TXT</button>
+                    <button id="btn-bkm-13" class="bkm-menu-btn" style="color:#74c7ec;"><i class="fa-solid fa-file-export"></i> 导出与备份</button>
+                    <button id="btn-bkm-15" class="bkm-menu-btn" style="color:#a6e3a1;"><i class="fa-solid fa-file-import"></i> 导入备份数据</button>
                     
                     <button id="btn-bkm-19" class="bkm-menu-btn full-width"><i class="fa-solid fa-gear" style="color:#94e2d5;"></i> 标签过滤设置 (当前: ${extensionSettings[MODULE_NAME].filterTags})</button>
                 </div>
@@ -366,6 +401,7 @@ async function openMainMenu() {
 
         switch (choice) {
             case 10: await quickSaveLatest(); break;
+            
             case 11:
                 const inputFloor = await context.callGenericPopup("请输入要收藏的楼层号：", context.POPUP_TYPE.INPUT, "", { cancelButton: "取消" });
                 if (!inputFloor) break;
@@ -373,30 +409,60 @@ async function openMainMenu() {
                 if (isNaN(mesId) || !context.chat[mesId]) { toastr.error("❌ 找不到该楼层！"); break; }
                 const msg = context.chat[mesId];
                 const text = (msg.swipes && msg.swipes.length > 0) ? msg.swipes[msg.swipe_id || 0] : msg.mes;
-                const realChar = getRealCharName(msg);
-                allBms.push({ time: new Date().toLocaleString(), char: realChar, role: msg.is_user ? 'User' : 'AI', text: text, floor: mesId, chatId: context.getCurrentChatId() });
+                allBms.push({ time: new Date().toLocaleString(), char: getRealCharName(msg), role: msg.is_user ? 'User' : 'AI', text: text, floor: mesId, chatId: context.getCurrentChatId() });
                 context.saveSettingsDebounced();
                 toastr.success(`✨ 成功收藏第 ${mesId} 楼！`);
                 break;
+                
             case 16:
                 const range = await context.callGenericPopup("请输入要查阅的楼层号：", context.POPUP_TYPE.INPUT, "", { cancelButton: "取消" });
                 if (!range || !context.chat[parseInt(range)]) { toastr.error("❌ 无效楼层！"); break; }
                 const targetMsg = context.chat[parseInt(range)];
                 const targetSwipes = targetMsg.swipes || [targetMsg.mes];
                 const rChar = getRealCharName(targetMsg);
-                // 构造成统一的格式方便传给 showBookmarksUI
-                const swipeItems = targetSwipes.map((text, i) => ({ text: text, char: rChar, time: new Date().toLocaleString(), role: targetMsg.is_user ? 'User' : 'AI', floor: parseInt(range), chatId: context.getCurrentChatId() }));
+                const swipeItems = targetSwipes.map((t, i) => ({ text: t, char: rChar, time: new Date().toLocaleString(), role: targetMsg.is_user ? 'User' : 'AI', floor: parseInt(range), chatId: context.getCurrentChatId() }));
                 await showBookmarksUI(swipeItems, `第 ${range} 楼的历史生成`);
                 break;
+                
             case 17:
                 const keyword = await context.callGenericPopup("请输入搜索关键字：", context.POPUP_TYPE.INPUT, "", { cancelButton: "取消" });
                 if (!keyword || !keyword.trim()) break;
                 const filtered = allBms.filter(b => (b.char && b.char.includes(keyword)) || (b.text && b.text.includes(keyword)));
                 await showBookmarksUI([...filtered], `搜索结果: "${keyword}"`);
                 break;
-            case 12:
-                await showBookmarksUI([...allBms], "所有收藏");
+                
+            case 12: { 
+                const viewHtml = `<div class="bkm-list-container"><h3 class="bkm-title">📂 请选择浏览模式</h3><div class="bkm-flex-col"><button id="view-latest" class="bkm-btn highlight">🆕 最新优先 (默认)</button><button id="view-char" class="bkm-btn">👤 按角色分类</button><button id="view-date" class="bkm-btn">📅 按日期分类</button><button id="view-oldest" class="bkm-btn">⏳ 按时间排序 (从旧到新)</button></div></div>`;
+                const viewChoice = await context.callGenericPopup(viewHtml, context.POPUP_TYPE.TEXT, "", {
+                    okButton: false, cancelButton: "返回",
+                    onOpen: (popup) => { $('#view-latest').on('click', () => popup.complete(1)); $('#view-char').on('click', () => popup.complete(2)); $('#view-date').on('click', () => popup.complete(3)); $('#view-oldest').on('click', () => popup.complete(4)); }
+                });
+                
+                if (!viewChoice || viewChoice === context.POPUP_RESULT.CANCELLED) break;
+                if (allBms.length === 0) { toastr.info("收藏夹为空。"); break; }
+
+                if (viewChoice === 1) await showBookmarksUI([...allBms], "所有收藏 (最新优先)");
+                else if (viewChoice === 4) await showBookmarksUI([...allBms].reverse(), "所有收藏 (时间顺序)");
+                else if (viewChoice === 2) {
+                    const charGroups =[...allBms].reverse().reduce((acc, bm) => { const c = bm.char || '未知角色'; if (!acc[c]) acc[c] = { count: 0, items: [] }; acc[c].count++; acc[c].items.push(bm); return acc; }, {});
+                    const charKeys = Object.keys(charGroups);
+                    let charHtml = `<div class="bkm-list-container"><h3 class="bkm-title">👤 请选择角色</h3><div class="bkm-flex-col">`;
+                    charKeys.forEach((c, idx) => { charHtml += `<button class="bkm-btn char-btn" data-idx="${idx}">${escapeHtml(c)} <span style="opacity:0.6; font-size:0.9em; margin-left:auto;">(${charGroups[c].count}条)</span></button>`; });
+                    charHtml += `</div></div>`;
+                    const cChoice = await context.callGenericPopup(charHtml, context.POPUP_TYPE.TEXT, "", { okButton: false, cancelButton: "返回", onOpen: (p) => { $('.char-btn').on('click', function() { p.complete(parseInt($(this).data('idx')) + 1000); }); } });
+                    if (cChoice >= 1000) await showBookmarksUI(charGroups[charKeys[cChoice - 1000]].items, `角色收藏: ${charKeys[cChoice - 1000]}`);
+                } else if (viewChoice === 3) {
+                    const dateGroups =[...allBms].reverse().reduce((acc, bm) => { const d = bm.time ? new Date(bm.time).toLocaleDateString() : '未知日期'; if (!acc[d]) acc[d] = { count: 0, items: [] }; acc[d].count++; acc[d].items.push(bm); return acc; }, {});
+                    const dateKeys = Object.keys(dateGroups);
+                    let dateHtml = `<div class="bkm-list-container"><h3 class="bkm-title">📅 请选择日期</h3><div class="bkm-flex-col">`;
+                    dateKeys.forEach((d, idx) => { dateHtml += `<button class="bkm-btn date-btn" data-idx="${idx}">${d} <span style="opacity:0.6; font-size:0.9em; margin-left:auto;">(${dateGroups[d].count}条)</span></button>`; });
+                    dateHtml += `</div></div>`;
+                    const dChoice = await context.callGenericPopup(dateHtml, context.POPUP_TYPE.TEXT, "", { okButton: false, cancelButton: "返回", onOpen: (p) => { $('.date-btn').on('click', function() { p.complete(parseInt($(this).data('idx')) + 2000); }); } });
+                    if (dChoice >= 2000) await showBookmarksUI(dateGroups[dateKeys[dChoice - 2000]].items, `日期收藏: ${dateKeys[dChoice - 2000]}`);
+                }
                 break;
+            }
+                
             case 18:
                 if (allBms.length === 0) { toastr.info("收藏夹为空。"); break; }
                 const itemsToDelete = allBms.map((bm, i) => ({ label: `[${escapeHtml(bm.char)} - 第${bm.floor}楼] ${escapeHtml(applyTagFilter(bm.text).substring(0, 25))}...`, value: i, fullText: applyTagFilter(bm.text) }));
@@ -407,20 +473,109 @@ async function openMainMenu() {
                     toastr.success(`🗑️ 已成功删除 ${indicesToDelete.length} 条收藏！`);
                 }
                 break;
-            case 13:
-                if (allBms.length === 0) { toastr.info("收藏夹为空。"); break; }
-                let txtContent = `=== 全局收藏夹导出 ===\n\n`;
-                allBms.forEach((b, i) => { txtContent += `[#${i+1}] 角色: ${b.char} | 楼层: ${b.floor} | 时间: ${b.time}\n${applyTagFilter(b.text)}\n------------------------\n\n`; });
-                try {
-                    const blob = new Blob([txtContent], { type: 'text/plain' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a'); a.href = url; a.download = `收藏夹备份_${Date.now()}.txt`;
-                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                    toastr.success('📄 下载成功！');
-                } catch (e) { toastr.error("❌ 下载失败。"); }
+                
+            case 13: { 
+                let exportSubMenuRunning = true;
+                while(exportSubMenuRunning) {
+                    const exportHtml = `<div class="bkm-list-container"><h3 class="bkm-title">📤 导出与备份</h3><div class="bkm-flex-col"><button id="exp-json" class="bkm-btn highlight">🗄️ 导出完整备份 (JSON)</button><button id="exp-copy" class="bkm-btn">📋 复制全部到剪贴板 (TXT)</button><hr style="border:0; border-top:1px dashed var(--SmartThemeBorderColor); margin: 5px 0;"><button id="exp-all" class="bkm-btn">📄 导出全部 (TXT)</button><button id="exp-char" class="bkm-btn">👤 按角色导出 (TXT)</button><button id="exp-date" class="bkm-btn">📅 按日期导出 (TXT)</button><button id="exp-range" class="bkm-btn">🔢 按范围导出 (TXT)</button><button id="exp-select" class="bkm-btn">☑️ 自由勾选导出 (TXT)</button></div></div>`;
+                    const exportTypeChoice = await context.callGenericPopup(exportHtml, context.POPUP_TYPE.TEXT, "", {
+                        okButton: false, cancelButton: "返回主菜单",
+                        onOpen: (popup) => { $('#exp-all').on('click', () => popup.complete(1)); $('#exp-char').on('click', () => popup.complete(2)); $('#exp-date').on('click', () => popup.complete(3)); $('#exp-range').on('click', () => popup.complete(4)); $('#exp-select').on('click', () => popup.complete(5)); $('#exp-json').on('click', () => popup.complete(6)); $('#exp-copy').on('click', () => popup.complete(7)); }
+                    });
+
+                    if (!exportTypeChoice || exportTypeChoice === context.POPUP_RESULT.CANCELLED) { exportSubMenuRunning = false; break; }
+                    if (allBms.length === 0) { toastr.warning("收藏夹为空！"); break; }
+                    
+                    if (exportTypeChoice === 6) { 
+                        const jsonStr = JSON.stringify(allBms, null, 2);
+                        const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                        await downloadData(jsonStr, `全部收藏备份_${dateStr}.json`, 'application/json');
+                        exportSubMenuRunning = false; continue;
+                    }
+                    
+                    if (exportTypeChoice === 7) { 
+                        try {
+                            await navigator.clipboard.writeText(generateTxtContent(allBms));
+                            toastr.success('✅ 已复制全部收藏到剪贴板！');
+                        } catch (e) { toastr.error('❌ 复制失败，您的浏览器不支持此操作。'); }
+                        exportSubMenuRunning = false; continue;
+                    }
+
+                    let bmsToExport =[];
+                    if (exportTypeChoice === 1) { bmsToExport = allBms; } 
+                    else if (exportTypeChoice === 4) {
+                        const rangeInput = await context.callGenericPopup("请输入范围 (如 5, 或 1-10)\n#1代表最新一条", context.POPUP_TYPE.INPUT, "", {cancelButton:"取消"});
+                        if (!rangeInput) continue;
+                        const reversedBms = [...allBms].reverse();
+                        let start, end;
+                        if (rangeInput.includes('-')) { [start, end] = rangeInput.split('-').map(n => parseInt(n.trim())); } else { start = end = parseInt(rangeInput.trim()); }
+                        if (isNaN(start) || isNaN(end) || start > end || start < 1 || end > reversedBms.length) { toastr.error("范围无效！"); continue; }
+                        bmsToExport = reversedBms.slice(start - 1, end);
+                    } else if (exportTypeChoice === 5) {
+                        const selectedIndices = await showMultiSelectUI(allBms.map((bm, i) => ({ label: `[${escapeHtml(bm.char)}] ${escapeHtml(applyTagFilter(bm.text).substring(0,25))}...`, value: i, fullText: applyTagFilter(bm.text) })), { title: '☑️ 请勾选要导出的收藏', okButtonText: '导出选中项' });
+                        if (selectedIndices) bmsToExport = selectedIndices.map(idx => allBms[idx]);
+                    } else if (exportTypeChoice === 2 || exportTypeChoice === 3) {
+                        const isChar = exportTypeChoice === 2;
+                        const groups =[...allBms].reverse().reduce((acc, bm) => { const key = isChar ? (bm.char || '未知角色') : (bm.time ? new Date(bm.time).toLocaleDateString() : '未知日期'); if (!acc[key]) acc[key] = { count: 0 }; acc[key].count++; return acc; }, {});
+                        const items = Object.keys(groups).map(key => ({ label: `${escapeHtml(key)} <span style="opacity:0.6; font-size:0.9em;">(${groups[key].count}条)</span>`, value: key }));
+                        const selectedKeys = await showMultiSelectUI(items, { title: `请选择要导出的${isChar ? '角色' : '日期'}`, okButtonText: '确认导出' });
+                        if (selectedKeys && selectedKeys.length > 0) {
+                            const keySet = new Set(selectedKeys);
+                            bmsToExport = allBms.filter(bm => keySet.has(isChar ? (bm.char || '未知角色') : (bm.time ? new Date(bm.time).toLocaleDateString() : '未知日期')));
+                        }
+                    }
+
+                    if (bmsToExport.length > 0) {
+                        const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                        await downloadData(generateTxtContent(bmsToExport), `精选收藏_${dateStr}.txt`, 'text/plain');
+                        exportSubMenuRunning = false;
+                    }
+                }
                 break;
+            }
+
+            case 15: { 
+                const modeChoice = await context.callGenericPopup(`<div class="bkm-list-container"><h3 style="margin-top:0; text-align:left; color:var(--SmartThemeQuoteColor);">请选择导入模式</h3><p style="font-size:0.9em; opacity:0.9; text-align:left; line-height:1.5;"><b>🤝 合并：</b>只添加新的、不重复的记录。<br><br><b style="color:#ff6666;">💥 覆盖：</b>清空您所有收藏，完全替换为导入文件。</p></div>`, context.POPUP_TYPE.CONFIRM, "", { okButton: "🤝 合并导入", cancelButton: "💥 覆盖导入" });
+                if (modeChoice === context.POPUP_RESULT.CANCELLED && !confirm("确定要覆盖吗？所有现有收藏将丢失！")) break;
+                
+                const importMode = (modeChoice === context.POPUP_RESULT.AFFIRMATIVE) ? 'merge' : 'overwrite';
+                const importHtml = `<div class="bkm-list-container" style="max-width: 400px;"><h3 class="bkm-title">📥 导入备份 (${importMode === 'merge' ? '合并' : '覆盖'})</h3><textarea id="bkm-import-textarea" placeholder="在此粘贴 JSON 或 TXT 备份文本..." style="width:100%; height:25vh; background:var(--SmartThemeBlurTintColor); color:var(--SmartThemeBodyColor); border:1px solid var(--SmartThemeBorderColor); border-radius:10px; padding:10px; box-sizing:border-box; outline:none; resize:vertical;"></textarea><div class="bkm-flex-col" style="margin-top:15px;"><button id="bkm-import-paste" class="bkm-btn highlight">📋 确认导入框内文本</button><button id="bkm-import-file" class="bkm-btn">📁 选择本地文件 (.json / .txt)</button></div></div>`;
+                
+                const handleImportData = async (text, mode) => {
+                    let newBookmarks =[]; let importType = '';
+                    try { const data = JSON.parse(text); if (Array.isArray(data)) { newBookmarks = data; importType = 'JSON'; } } catch (e) {}
+                    if (importType === '') {
+                        const regex = /\[#\d+\] 剧本: (.*?) \| 发送者: (.*?) \| 楼层: (.*?) \| 时间: (.*?)\n([\s\S]*?)\n--------------------------------------------------/g;
+                        let match;
+                        while ((match = regex.exec(text)) !== null) { newBookmarks.push({ char: match[1].trim(), role: match[2].trim(), floor: isNaN(parseInt(match[3])) ? undefined : parseInt(match[3]), time: match[4].trim(), text: match[5].trim() }); }
+                        if (newBookmarks.length > 0) importType = 'TXT';
+                    }
+                    if (importType === '') return toastr.error("❌ 解析失败！请确保是正确的 JSON 或 TXT 备份格式。");
+
+                    if (mode === 'overwrite') {
+                        extensionSettings[MODULE_NAME].bookmarks = newBookmarks;
+                        toastr.success(`💥 [${importType}] 覆盖成功！已导入 ${newBookmarks.length} 条。`);
+                    } else {
+                        const existingTexts = new Set(extensionSettings[MODULE_NAME].bookmarks.map(b => b.text));
+                        let addedCount = 0;
+                        newBookmarks.forEach(newItem => { if (newItem.text && !existingTexts.has(newItem.text)) { extensionSettings[MODULE_NAME].bookmarks.push(newItem); existingTexts.add(newItem.text); addedCount++; } });
+                        toastr.success(`🤝 [${importType}] 合并完成！新增了 ${addedCount} 条记录。`);
+                    }
+                    context.saveSettingsDebounced();
+                };
+
+                await context.callGenericPopup(importHtml, context.POPUP_TYPE.TEXT, "", {
+                    okButton: false, cancelButton: "取消",
+                    onOpen: (popup) => {
+                        $('#bkm-import-paste').on('click', async () => { const pastedText = $('#bkm-import-textarea').val(); if (!pastedText.trim()) toastr.warning("文本框为空！"); else { await handleImportData(pastedText, importMode); popup.complete(1); } });
+                        $('#bkm-import-file').on('click', () => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json,.txt'; input.onchange = e => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (re) => { await handleImportData(re.target.result, importMode); popup.complete(1); }; reader.readAsText(file); }; input.click(); });
+                    }
+                });
+                break;
+            }
+
             case 19:
-                const newTags = await context.callGenericPopup(`请输入要过滤的标签（如: think, thought）：`, context.POPUP_TYPE.INPUT, extensionSettings[MODULE_NAME].filterTags, { cancelButton: "取消" });
+                const newTags = await context.callGenericPopup(`请输入要过滤的标签（如: think, summary）：`, context.POPUP_TYPE.INPUT, extensionSettings[MODULE_NAME].filterTags, { cancelButton: "取消" });
                 if (newTags !== undefined) {
                     extensionSettings[MODULE_NAME].filterTags = newTags;
                     context.saveSettingsDebounced();
@@ -431,7 +586,7 @@ async function openMainMenu() {
     }
 }
 
-// ================= 悬浮球拖拽逻辑 =================
+// 悬浮球
 function makeDraggable(fab) {
     let isDragging = false;
     let startX, startY, initialTop, initialLeft;

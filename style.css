@@ -13,7 +13,6 @@
     cursor: pointer;
     box-shadow: 0 4px 15px rgba(0,0,0,0.4);
     z-index: 9999999 !important;
-    opacity: 0.9; 
     transition: transform 0.2s;
     touch-action: none;
 }
@@ -22,83 +21,97 @@
     transform: scale(0.95);
 }
 
-/* 基础容器 */
+/* 基础容器 - 取消 max-height 和 overflow，让酒馆原生的底部返回按钮永远悬浮在屏幕最下方 */
 .bkm-list-container {
-    max-height: 82vh;
-    overflow-y: auto;
     padding: 10px 5px;
     width: 100%;
     box-sizing: border-box;
     font-family: sans-serif;
+    text-align: left !important;
 }
 
 /* 标题 */
 .bkm-title {
     margin-top: 0;
-    color: var(--SmartThemeQuoteColor, #cba6f7);
+    color: var(--SmartThemeQuoteColor);
     font-size: 1.3em;
     font-weight: bold;
     margin-bottom: 20px;
-    border-bottom: 2px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1));
+    border-bottom: 2px solid var(--SmartThemeBorderColor);
     padding-bottom: 10px;
+    text-align: left !important;
 }
-.bkm-count { font-size: 0.75em; opacity: 0.7; font-weight: normal; }
+.bkm-count { font-size: 0.75em; font-weight: normal; color: var(--SmartThemeBodyColor); }
 
-/* 菜单按钮系统 (九宫格优化版) */
+/* 菜单按钮系统 */
 .bkm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
 .bkm-flex-col { display: flex; flex-direction: column; gap: 10px; }
-.bkm-menu-btn {
+
+.bkm-menu-btn, .bkm-btn {
     width: 100%;
     padding: 14px 10px;
     font-size: 0.95em;
     border-radius: 12px;
-    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1));
-    background: var(--SmartThemeButtonBackgroundColor, rgba(255,255,255,0.05));
-    color: var(--SmartThemeBodyColor, #cdd6f4);
+    border: 1px solid var(--SmartThemeBorderColor);
+    background: var(--SmartThemeButtonBackgroundColor);
+    color: var(--SmartThemeBodyColor);
     text-align: center;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 8px;
     box-sizing: border-box;
 }
+
+/* 九宫格大按钮 */
+.bkm-menu-btn { flex-direction: column; gap: 8px; }
 .bkm-menu-btn i { font-size: 1.3em; }
 .bkm-menu-btn.full-width { grid-column: 1 / -1; flex-direction: row; justify-content: center; }
-.bkm-menu-btn.highlight { border-color: var(--SmartThemeQuoteColor, #cba6f7); color: var(--SmartThemeQuoteColor, #cba6f7); font-weight: bold; background: rgba(203, 166, 247, 0.1); }
-.bkm-menu-btn:active { transform: scale(0.98); background: rgba(255,255,255,0.1); }
 
-/* --- 核心卡片样式 (楼层分组) --- */
+/* 普通行按钮 */
+.bkm-btn { flex-direction: row; justify-content: flex-start; padding: 12px 15px; }
+
+/* 高亮样式 */
+.bkm-menu-btn.highlight, .bkm-btn.highlight { 
+    border-color: var(--SmartThemeQuoteColor); 
+    color: var(--SmartThemeQuoteColor); 
+    font-weight: bold; 
+    background: var(--SmartThemeBlurTintColor); 
+}
+
+.bkm-menu-btn:active, .bkm-btn:active { transform: scale(0.98); }
+
+/* --- 核心卡片样式 --- */
 .bkm-group-card {
-    background: var(--SmartThemeBlurTintColor, rgba(30,30,46,0.8));
-    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1));
+    background: var(--SmartThemeBlurTintColor);
+    border: 1px solid var(--SmartThemeBorderColor);
     border-radius: 14px;
     padding: 0;
     margin-bottom: 16px;
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    text-align: left !important;
 }
 
 .bkm-group-header {
-    background: rgba(0,0,0,0.15);
+    background: var(--SmartThemeButtonBackgroundColor);
     padding: 12px 15px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
 }
 
 .bkm-avatar-name {
-    color: var(--SmartThemeUserColor, #f5c2e7);
+    color: var(--SmartThemeUserColor);
     font-weight: bold;
     font-size: 1.05em;
     margin-right: 8px;
 }
 
 .bkm-floor-badge {
-    background: rgba(255,255,255,0.1);
-    color: #bac2de;
+    background: var(--SmartThemeBorderColor);
+    color: var(--SmartThemeBodyColor);
     padding: 2px 8px;
     border-radius: 20px;
     font-size: 0.8em;
@@ -106,16 +119,17 @@
 
 .bkm-time-info {
     font-size: 0.8em;
-    color: #a6adc8;
+    color: var(--SmartThemeBodyColor);
 }
 
 /* 折叠栏与预览 */
-.bkm-details { width: 100%; }
+.bkm-details { width: 100%; text-align: left !important; }
 .bkm-summary {
     list-style: none; /* 隐藏默认箭头 */
     padding: 12px 15px;
     cursor: pointer;
     user-select: none;
+    text-align: left !important;
 }
 .bkm-summary::-webkit-details-marker { display: none; }
 
@@ -123,17 +137,18 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    text-align: left !important;
 }
 .bkm-preview-text {
     font-size: 0.95em;
-    color: #bac2de;
+    color: var(--SmartThemeBodyColor);
     line-height: 1.5;
-    opacity: 0.9;
+    text-align: left !important;
 }
 .bkm-version-badge {
     align-self: flex-start;
-    background: rgba(203, 166, 247, 0.15);
-    color: #cba6f7;
+    background: var(--SmartThemeButtonBackgroundColor);
+    color: var(--SmartThemeQuoteColor);
     padding: 4px 10px;
     border-radius: 6px;
     font-size: 0.8em;
@@ -141,21 +156,42 @@
     display: flex;
     align-items: center;
     gap: 5px;
+    border: 1px solid var(--SmartThemeQuoteColor);
 }
-.bkm-version-badge.single { background: rgba(255,255,255,0.08); color: #a6adc8; }
+.bkm-version-badge.single { border-color: var(--SmartThemeBorderColor); color: var(--SmartThemeBodyColor); }
 .bkm-details[open] .bkm-version-badge i { transform: rotate(180deg); }
 
-/* 展开后的各版本列表 */
-.bkm-versions-list {
-    background: rgba(0,0,0,0.2);
-    border-top: 1px solid rgba(255,255,255,0.05);
+/* --- 恢复的左右箭头切换控制条 --- */
+.bkm-swipe-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    background: var(--SmartThemeButtonBackgroundColor);
+    padding: 6px 15px;
+    border-radius: 20px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    width: fit-content;
+    margin: 0 auto 15px auto;
 }
+.bkm-swipe-btn {
+    background: transparent;
+    border: none;
+    color: var(--SmartThemeBodyColor);
+    font-weight: bold;
+    font-size: 1.4em;
+    cursor: pointer;
+    padding: 0 10px;
+}
+.bkm-swipe-btn:active { color: var(--SmartThemeQuoteColor); transform: scale(0.9); }
 
-.bkm-version-item {
+/* 展开后的各版本区域 */
+.bkm-versions-list {
+    background: var(--SmartThemeBackgroundColor);
+    border-top: 1px solid var(--SmartThemeBorderColor);
     padding: 15px;
-    border-bottom: 1px dashed rgba(255,255,255,0.1);
+    text-align: left !important;
 }
-.bkm-version-item:last-child { border-bottom: none; }
 
 .bkm-version-toolbar {
     display: flex;
@@ -165,7 +201,7 @@
 }
 .bkm-version-label {
     font-size: 0.85em;
-    color: #f38ba8;
+    color: var(--SmartThemeQuoteColor);
     font-weight: bold;
 }
 
@@ -183,24 +219,18 @@
     align-items: center;
     gap: 5px;
 }
-.bkm-icon-btn.restore { color: #89b4fa; }
-.bkm-icon-btn.shot { color: #a6e3a1; }
-.bkm-icon-btn:active { background: currentColor; color: #11111b !important; }
+.bkm-icon-btn.restore { color: var(--SmartThemeLinkColor); }
+.bkm-icon-btn.shot { color: var(--SmartThemeQuoteColor); }
+.bkm-icon-btn:active { background: currentColor; color: var(--SmartThemeBackgroundColor) !important; }
 
-/* 渲染文本区 */
-.bkm-rendered-text {
+/* 渲染文本区 (修复了居中问题) */
+.bkm-rendered-text, .bkm-rendered-text .mes_text {
     font-size: 1em;
     line-height: 1.6;
-    color: var(--SmartThemeBodyColor, #cdd6f4);
-    background: rgba(255,255,255,0.03);
+    color: var(--SmartThemeBodyColor);
+    background: var(--SmartThemeButtonBackgroundColor);
     padding: 12px;
     border-radius: 8px;
+    text-align: left !important; /* 强制左对齐 */
+    word-break: break-word;
 }
-
-/* 简单的普通按钮 (如确定/取消) */
-.bkm-btn {
-    width: 100%; padding: 12px; font-size: 14px; border-radius: 10px;
-    border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05);
-    color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center;
-}
-.bkm-btn-highlight { border-color: #cba6f7; color: #cba6f7; font-weight:bold; background: rgba(203,166,247,0.1); }
