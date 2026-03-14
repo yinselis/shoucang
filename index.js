@@ -58,7 +58,7 @@ function loadSettings() {
     }
 }
 
-// ================= 【导回系统 (新增插队功能)】 =================
+// ================= 【导回系统 (含插队功能)】 =================
 async function restoreBookmarkToChat(bm) {
     try {
         const lastMessageId = context.chat.length - 1;
@@ -153,22 +153,18 @@ async function restoreBookmarkToChat(bm) {
             const updatedMsg = await injectSwipeToFloor(tf);
             toastr.success(`✅ 已塞入第 ${tf} 楼 (第 ${updatedMsg.swipe_id + 1} 页)！`);
         }
-        else if (choice === 4) { // 新增：强行插队
+        else if (choice === 4) { 
             const input = await context.callGenericPopup(`请输入要在哪一楼【之后】插入新楼层 (0 - ${lastMessageId})：`, context.POPUP_TYPE.INPUT, "", { cancelButton: "取消" });
             if (!input) return;
             const tf = parseInt(input);
             if (isNaN(tf) || tf < 0 || tf > lastMessageId) return toastr.error(`❌ 无效的楼层号！`);
             
             const newMsg = createStandardMsg();
-            // 核心：使用 splice 插入数组中间
             context.chat.splice(tf + 1, 0, newMsg);
             if (typeof context.saveChat === 'function') await context.saveChat();
             
             toastr.info("🔄 正在重绘聊天界面...");
-            // 因为楼层改变了，最好全盘刷新
-            if (typeof context.reloadCurrentChat === 'function') {
-                await context.reloadCurrentChat();
-            }
+            if (typeof context.reloadCurrentChat === 'function') await context.reloadCurrentChat();
             toastr.success(`✅ 已成功插队到第 ${tf + 1} 楼！`);
         }
     } catch (e) { 
@@ -177,7 +173,7 @@ async function restoreBookmarkToChat(bm) {
     }
 }
 
-// ================= 【图片生成系统 (全方位大升级)】 =================
+// ================= 【图片生成系统 (8大门派风格)】 =================
 async function takeScreenshot(bm) {
     if (typeof window.html2canvas === 'undefined') {
         try { 
@@ -187,15 +183,20 @@ async function takeScreenshot(bm) {
         catch (e) { return toastr.error("❌ 无法加载截图引擎。"); }
     }
 
-    // 1. 让用户选择图片风格
+    // 1. 让用户选择图片风格 (扩充至 8 种)
     const styleMenuHtml = `
         <div class="bkm-list-container">
             <h3 class="bkm-title">🎨 请选择图片生成风格</h3>
             <div class="bkm-grid">
-                <button class="bkm-btn bkm-style-btn" data-style="dark" style="background:#1e1e2e; color:#cdd6f4; border:1px solid #cba6f7;">🌙 经典暗黑 (毛玻璃质感)</button>
-                <button class="bkm-btn bkm-style-btn" data-style="light" style="background:#f8f9fa; color:#4c4f69; border:1px solid #9ca0b0;">☀️ 纯净极简 (社交媒体风)</button>
-                <button class="bkm-btn bkm-style-btn" data-style="novel" style="background:#f4ecd8; color:#3e2723; border:1px solid #8d6e63; font-family: serif;">📜 古典羊皮纸 (阅读模式)</button>
-                <button class="bkm-btn bkm-style-btn" data-style="cyber" style="background:#000000; color:#00ff00; border:1px solid #00ff00; font-family: monospace;">💻 赛博终端 (黑客风)</button>
+                <button class="bkm-btn bkm-style-btn" data-style="dark" style="background:#1e1e2e; color:#cdd6f4; border:1px solid #cba6f7;">🌙 经典暗黑</button>
+                <button class="bkm-btn bkm-style-btn" data-style="light" style="background:#f8f9fa; color:#4c4f69; border:1px solid #9ca0b0;">☀️ 纯净极简</button>
+                <button class="bkm-btn bkm-style-btn" data-style="novel" style="background:#f4ecd8; color:#3e2723; border:1px solid #8d6e63; font-family: serif;">📜 古典羊皮纸</button>
+                <button class="bkm-btn bkm-style-btn" data-style="cyber" style="background:#000000; color:#00ff00; border:1px solid #00ff00; font-family: monospace;">💻 赛博终端</button>
+                
+                <button class="bkm-btn bkm-style-btn" data-style="cute" style="background:#fff0f5; color:#d81b60; border:2px dashed #ffb6c1; border-radius:15px;">🌸 软萌初雪</button>
+                <button class="bkm-btn bkm-style-btn" data-style="ocean" style="background:linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color:#2c3e50; border:1px solid #fff;">🌊 盛夏海浪</button>
+                <button class="bkm-btn bkm-style-btn" data-style="matcha" style="background:#e8f5e9; color:#2e7d32; border:1px solid #81c784;">🍵 抹茶拿铁</button>
+                <button class="bkm-btn bkm-style-btn" data-style="retro" style="background:#fff; color:#000; border:2px solid #000; box-shadow: 3px 3px 0px #ff90e8; border-radius:0;">📻 复古波普</button>
             </div>
         </div>
     `;
@@ -209,58 +210,85 @@ async function takeScreenshot(bm) {
 
     if (!selectedStyle || selectedStyle === context.POPUP_RESULT.CANCELLED) return;
 
-    toastr.info("📸 正在绘制长图...");
+    toastr.info("📸 正在施展换装魔法...");
 
     const safeText = applyTagFilter(bm.text || "*(内容丢失)*");
     const formattedText = typeof showdown !== 'undefined' ? new showdown.Converter().makeHtml(safeText) : escapeHtml(safeText);
     const initialChar = bm.char ? bm.char.charAt(0).toUpperCase() : 'A';
     
     // 2. 根据风格定义 CSS 变量
-    let cssWrapper = ''; let cssCard = ''; let cssAvatar = ''; let cssName = ''; let cssTime = ''; let cssText = '';
+    let cssWrapper = ''; let cssCard = ''; let cssAvatar = ''; let cssName = ''; let cssTime = ''; let cssText = ''; let cssDivider = '';
     
     if (selectedStyle === 'dark') {
-        cssWrapper = 'background-color: #11111b; padding: 40px;';
+        cssWrapper = 'background: #11111b;';
         cssCard = 'background: rgba(30,30,46,0.9); border-radius: 16px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);';
         cssAvatar = 'background: linear-gradient(135deg, #cba6f7, #f38ba8); color: #fff; border-radius: 50%;';
-        cssName = 'color: #cdd6f4; font-weight: bold; font-size: 1.3em;';
-        cssTime = 'color: #a6adc8;';
+        cssName = 'color: #cdd6f4; font-weight: bold; font-size: 1.3em;'; cssTime = 'color: #a6adc8;';
         cssText = 'color: #bac2de; font-size: 1.1em; line-height: 1.7; font-family: sans-serif;';
+        cssDivider = 'border-bottom: 1px solid rgba(255,255,255,0.1);';
     } else if (selectedStyle === 'light') {
-        cssWrapper = 'background-color: #e6e9ef; padding: 40px;';
+        cssWrapper = 'background: #e6e9ef;';
         cssCard = 'background: #ffffff; border-radius: 20px; padding: 30px; box-shadow: 0 5px 20px rgba(0,0,0,0.05);';
         cssAvatar = 'background: #e6e9ef; color: #4c4f69; border-radius: 50%; font-weight: 800;';
-        cssName = 'color: #1e1e2e; font-weight: 800; font-size: 1.2em;';
-        cssTime = 'color: #9ca0b0;';
+        cssName = 'color: #1e1e2e; font-weight: 800; font-size: 1.2em;'; cssTime = 'color: #9ca0b0;';
         cssText = 'color: #4c4f69; font-size: 1.05em; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;';
+        cssDivider = 'border-bottom: 1px solid rgba(0,0,0,0.05);';
     } else if (selectedStyle === 'novel') {
-        cssWrapper = 'background-color: #d7ccc8; padding: 40px;';
+        cssWrapper = 'background: #d7ccc8;';
         cssCard = 'background: #f4ecd8; padding: 40px; box-shadow: inset 0 0 50px rgba(0,0,0,0.05), 0 10px 20px rgba(0,0,0,0.1); border: 1px solid #d7ccc8;';
         cssAvatar = 'background: transparent; color: #5d4037; border-radius: 0; font-family: serif; border-bottom: 2px solid #5d4037; height: auto; padding-bottom: 5px;';
-        cssName = 'color: #3e2723; font-weight: bold; font-size: 1.4em; font-family: serif;';
-        cssTime = 'color: #795548; font-family: serif;';
+        cssName = 'color: #3e2723; font-weight: bold; font-size: 1.4em; font-family: serif;'; cssTime = 'color: #795548; font-family: serif;';
         cssText = 'color: #212121; font-size: 1.15em; line-height: 2.0; font-family: "Georgia", serif; text-indent: 2em;';
+        cssDivider = 'border-bottom: none;';
     } else if (selectedStyle === 'cyber') {
-        cssWrapper = 'background-color: #000000; padding: 40px;';
+        cssWrapper = 'background: #000000;';
         cssCard = 'background: #050505; border-radius: 0; padding: 30px; border: 1px solid #00ff00; box-shadow: 0 0 15px rgba(0,255,0,0.2);';
         cssAvatar = 'background: #002200; color: #00ff00; border-radius: 0; border: 1px solid #00ff00; font-family: monospace;';
-        cssName = 'color: #00ff00; font-weight: normal; font-size: 1.2em; font-family: monospace; text-transform: uppercase;';
-        cssTime = 'color: #008800; font-family: monospace;';
+        cssName = 'color: #00ff00; font-weight: normal; font-size: 1.2em; font-family: monospace; text-transform: uppercase;'; cssTime = 'color: #008800; font-family: monospace;';
         cssText = 'color: #00ff00; font-size: 1.05em; line-height: 1.5; font-family: monospace; text-shadow: 0 0 2px #00ff00;';
+        cssDivider = 'border-bottom: 1px dashed #00ff00;';
+    } else if (selectedStyle === 'cute') {
+        cssWrapper = 'background: #ffe4e1;';
+        cssCard = 'background: #fffafb; border-radius: 30px; padding: 35px; border: 4px dashed #ffb6c1; box-shadow: 0 10px 20px rgba(255, 182, 193, 0.3);';
+        cssAvatar = 'background: #ffb6c1; color: #fff; border-radius: 50%; box-shadow: 0 4px 10px rgba(255, 182, 193, 0.6);';
+        cssName = 'color: #d81b60; font-weight: 900; font-size: 1.3em;'; cssTime = 'color: #f06292;';
+        cssText = 'color: #880e4f; font-size: 1.1em; line-height: 1.6; font-family: "Comic Sans MS", "Arial Rounded MT Bold", sans-serif;';
+        cssDivider = 'border-bottom: 2px dotted #ffb6c1;';
+    } else if (selectedStyle === 'ocean') {
+        cssWrapper = 'background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);';
+        cssCard = 'background: rgba(255, 255, 255, 0.7); border-radius: 20px; padding: 30px; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15); border: 1px solid rgba(255, 255, 255, 0.4);';
+        cssAvatar = 'background: #ffffff; color: #4facfe; border-radius: 30%; box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);';
+        cssName = 'color: #2c3e50; font-weight: bold; font-size: 1.3em;'; cssTime = 'color: #5d6d7e;';
+        cssText = 'color: #34495e; font-size: 1.1em; line-height: 1.7;';
+        cssDivider = 'border-bottom: 1px solid rgba(255,255,255,0.6);';
+    } else if (selectedStyle === 'matcha') {
+        cssWrapper = 'background: #e8f5e9;';
+        cssCard = 'background: #ffffff; border-radius: 12px; padding: 30px; box-shadow: 0 10px 15px rgba(46, 125, 50, 0.05); border-left: 8px solid #66bb6a;';
+        cssAvatar = 'background: #a5d6a7; color: #1b5e20; border-radius: 10px;';
+        cssName = 'color: #2e7d32; font-weight: bold; font-size: 1.25em;'; cssTime = 'color: #81c784;';
+        cssText = 'color: #388e3c; font-size: 1.05em; line-height: 1.8;';
+        cssDivider = 'border-bottom: 1px solid #c8e6c9;';
+    } else if (selectedStyle === 'retro') {
+        cssWrapper = 'background: linear-gradient(to top, #fbc2eb 0%, #a6c1ee 100%);';
+        cssCard = 'background: #ffffff; border-radius: 0; padding: 30px; border: 3px solid #000000; box-shadow: 8px 8px 0px #ff90e8;';
+        cssAvatar = 'background: #ffff00; color: #000; border-radius: 0; border: 2px solid #000; box-shadow: 3px 3px 0px #000; font-weight:900;';
+        cssName = 'color: #000000; font-weight: 900; font-size: 1.4em; text-transform: uppercase; letter-spacing: 1px;'; cssTime = 'color: #666; font-weight: bold;';
+        cssText = 'color: #000000; font-size: 1.1em; line-height: 1.6; font-weight: 500;';
+        cssDivider = 'border-bottom: 3px solid #000;';
     }
 
-    // 彻底解决黑边：最外层div负责绝对的纯色填充，内层div做排版
     const container = document.createElement('div');
-    container.style.cssText = `position:fixed; top:-9999px; left:0; width:650px; z-index:-9999; box-sizing:border-box; text-align: left; ${cssWrapper}`;
+    container.style.cssText = `position:fixed; top:-9999px; left:0; width:650px; z-index:-9999; box-sizing:border-box; text-align: left; padding: 40px; ${cssWrapper}`;
 
     container.innerHTML = `
         <div style="${cssCard}">
-            <div style="display: flex; align-items: center; margin-bottom: 20px; border-bottom: ${selectedStyle === 'novel' ? 'none' : (selectedStyle === 'cyber' ? '1px dashed #00ff00' : '1px solid rgba(128,128,128,0.2)')}; padding-bottom: 15px;">
+            <div style="display: flex; align-items: center; margin-bottom: 20px; ${cssDivider} padding-bottom: 15px;">
                 <div style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-right: 15px; flex-shrink: 0; ${cssAvatar}">
                     ${initialChar}
                 </div>
                 <div style="flex: 1;">
                     <div style="${cssName}">${escapeHtml(bm.char || "未知")}</div>
-                    <div style="font-size: 0.85em; margin-top: 5px; ${cssTime}">${selectedStyle === 'cyber' ? '> SYS.TIME: ' : '🕒 '}${escapeHtml(bm.time)} | ${selectedStyle === 'cyber' ? 'FLOOR_ID:' : '💬 第'} ${bm.floor !== undefined ? bm.floor : '?'} ${selectedStyle === 'cyber' ? '' : '楼'}</div>
+                    <div style="font-size: 0.85em; margin-top: 5px; ${cssTime}">${selectedStyle === 'cyber' ? '> SYS.TIME: ' : (selectedStyle === 'cute' ? '🎀 ' : '🕒 ')}${escapeHtml(bm.time)} | ${selectedStyle === 'cyber' ? 'FLOOR_ID:' : '💬 第'} ${bm.floor !== undefined ? bm.floor : '?'} ${selectedStyle === 'cyber' ? '' : '楼'}</div>
                 </div>
             </div>
             <div class="mes_text bkm-rendered-text" style="${cssText} word-wrap: break-word; text-align: justify !important;">
@@ -272,9 +300,8 @@ async function takeScreenshot(bm) {
     document.body.appendChild(container);
 
     try {
-        await new Promise(r => setTimeout(r, 800)); // 给图片渲染一点时间
+        await new Promise(r => setTimeout(r, 800)); 
         
-        // backgroundColor: null 保证没有默认白边，直接使用容器背景
         const canvas = await window.html2canvas(container, { 
             backgroundColor: null, 
             scale: 2, 
@@ -284,12 +311,11 @@ async function takeScreenshot(bm) {
         
         const url = canvas.toDataURL('image/png');
         
-        // 3. 构建弹窗，带有原生的下载按钮！
         const imgHtml = `
             <div style="text-align:center; max-height: 80vh; display: flex; flex-direction: column; align-items: center;">
                 <div style="margin-bottom: 15px;">
-                    <p style="color: var(--SmartThemeQuoteColor); font-weight: bold; margin: 0 0 10px 0;">✅ 图片生成成功！</p>
-                    <button id="bkm-real-download-btn" class="bkm-btn highlight" style="font-size: 1.1em; padding: 10px 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                    <p style="color: var(--SmartThemeQuoteColor); font-weight: bold; margin: 0 0 10px 0;">✨ 魔法换装完成！</p>
+                    <button id="bkm-real-download-btn" class="bkm-btn highlight" style="font-size: 1.1em; padding: 10px 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border-radius: 20px;">
                         <i class="fa-solid fa-download"></i> 点击保存到手机 / 电脑
                     </button>
                 </div>
@@ -301,11 +327,10 @@ async function takeScreenshot(bm) {
         await context.callGenericPopup(imgHtml, context.POPUP_TYPE.TEXT, "", { 
             large: true, wide: true, okButton: false, cancelButton: "关闭",
             onOpen: () => {
-                // 绑定点击下载事件
                 $('#bkm-real-download-btn').on('click', function() {
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `SillyTavern_收藏_${bm.char || '未知'}_${Date.now()}.png`;
+                    a.download = `ST_收藏_${bm.char || '未知'}_${Date.now()}.png`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
@@ -327,13 +352,24 @@ async function quickSaveLatest() {
         const textToSave = (lastMsg.swipes && lastMsg.swipes.length > 0) ? lastMsg.swipes[lastMsg.swipe_id || 0] : lastMsg.mes;
         if (!textToSave || textToSave.trim() === "") return toastr.warning("消息为空。");
         
+        const currentChatId = context.getCurrentChatId();
+        const currentFloor = context.chat.length - 1;
+        
+        // 【新增防手滑机制】：检查是否已经存在完全相同的记录
+        const isDuplicate = extensionSettings[MODULE_NAME].bookmarks.some(b => 
+            b.text === textToSave && b.chatId === currentChatId && b.floor === currentFloor
+        );
+        if (isDuplicate) {
+            return toastr.warning("⚠️ 这条消息您刚才已经收藏过啦，不用重复点哦！");
+        }
+
         extensionSettings[MODULE_NAME].bookmarks.push({ 
             time: new Date().toLocaleString(), 
             char: getRealCharName(lastMsg), 
             role: lastMsg.is_user ? 'User' : 'AI', 
             text: textToSave, 
-            floor: context.chat.length - 1, 
-            chatId: context.getCurrentChatId() 
+            floor: currentFloor, 
+            chatId: currentChatId 
         });
         context.saveSettingsDebounced();
         toastr.success("✨ 成功收藏最新回复！");
@@ -553,7 +589,16 @@ async function openMainMenu() {
                 if (isNaN(mesId) || !context.chat[mesId]) { toastr.error("❌ 找不到该楼层！"); break; }
                 const msg = context.chat[mesId];
                 const text = (msg.swipes && msg.swipes.length > 0) ? msg.swipes[msg.swipe_id || 0] : msg.mes;
-                allBms.push({ time: new Date().toLocaleString(), char: getRealCharName(msg), role: msg.is_user ? 'User' : 'AI', text: text, floor: mesId, chatId: context.getCurrentChatId() });
+                const currentChatId = context.getCurrentChatId();
+                
+                // 【新增防手滑机制】：针对指定楼层收藏
+                const isDuplicate = allBms.some(b => b.text === text && b.chatId === currentChatId && b.floor === mesId);
+                if (isDuplicate) {
+                    toastr.warning("⚠️ 这条消息之前已经收藏过了哦！");
+                    break;
+                }
+
+                allBms.push({ time: new Date().toLocaleString(), char: getRealCharName(msg), role: msg.is_user ? 'User' : 'AI', text: text, floor: mesId, chatId: currentChatId });
                 context.saveSettingsDebounced();
                 toastr.success(`✨ 成功收藏第 ${mesId} 楼！`);
                 break;
