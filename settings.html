@@ -21,14 +21,20 @@
         </div>
 
         <hr class="sysHR" />
-        <!-- 新增：瘦身相关功能 -->
+        
         <div class="settings_section flex-container align-items-center" style="margin-top: 10px;">
             <input type="checkbox" id="bkm-setting-filter-on-save">
             <label for="bkm-setting-filter-on-save" style="font-weight: bold; color: #a6e3a1;">在点击收藏时，自动剔除以上标签内容（极大节省文件大小）</label>
         </div>
-        <div class="settings_section" style="margin-top: 15px;">
-            <div id="bkm-btn-clean-existing" class="menu_button">🧹 瘦身大扫除：一键清理【已经收藏】的记录中的标签内容</div>
-            <small style="opacity: 0.8;">（如果过去积累了大量带思考链的收藏导致 settings 文件卡顿，点此可自动把现有记录里多余的标签清洗掉）</small>
+        
+        <!-- 修改了这里的布局和按钮文字，防止手机端挤压 -->
+        <div class="settings_section" style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+            <div id="bkm-btn-clean-existing" class="menu_button" style="margin: 0; width: 100%; box-sizing: border-box; padding: 10px; text-align: center; white-space: nowrap;">
+                🧹 瘦身大扫除 (清理现有收藏)
+            </div>
+            <small style="opacity: 0.8; line-height: 1.4;">
+                （如果过去积累了大量带思考链的收藏导致 settings 文件变大，点此可一键清洗掉旧记录里的多余标签）
+            </small>
         </div>
     </div>
 </div>
