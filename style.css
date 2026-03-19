@@ -253,3 +253,12 @@
     text-align: left !important; /* 强制左对齐 */
     word-break: break-word;
 }
+
+/* --- 快捷消息星星按钮样式 --- */
+.bkm-mes-btn {
+    transition: transform 0.2s, color 0.2s;
+}
+.bkm-mes-btn:hover {
+    transform: scale(1.15);
+    color: var(--SmartThemeQuoteColor);
+}

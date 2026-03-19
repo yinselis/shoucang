@@ -6,6 +6,7 @@ const defaultSettings = {
     showFloatingButton: true,
     filterTags: 'think,summary',
     removeBeforeClosing: true,
+    filterOnSave: true, // 保存时自动清洗标签
     bookmarks:[],
     fabPosition: { top: '30%', left: '85%' }
 };
@@ -98,7 +99,7 @@ async function restoreBookmarkToChat(bm) {
             extra: {},
             swipes: [safeText],
             swipe_id: 0,
-            swipe_info: [{ send_date: Date.now(), extra: { bookmark_restored: true } }]
+            swipe_info:[{ send_date: Date.now(), extra: { bookmark_restored: true } }]
         });
 
         const appendNewMessage = async () => {
@@ -173,7 +174,7 @@ async function restoreBookmarkToChat(bm) {
     }
 }
 
-// ================= 【图片生成系统 (8大门派风格)】 =================
+// ================= 【图片生成系统】 =================
 async function takeScreenshot(bm) {
     if (typeof window.html2canvas === 'undefined') {
         try { 
@@ -183,7 +184,6 @@ async function takeScreenshot(bm) {
         catch (e) { return toastr.error("❌ 无法加载截图引擎。"); }
     }
 
-    // 1. 让用户选择图片风格 (扩充至 8 种)
     const styleMenuHtml = `
         <div class="bkm-list-container">
             <h3 class="bkm-title">🎨 请选择图片生成风格</h3>
@@ -192,7 +192,6 @@ async function takeScreenshot(bm) {
                 <button class="bkm-btn bkm-style-btn" data-style="light" style="background:#f8f9fa; color:#4c4f69; border:1px solid #9ca0b0;">☀️ 纯净极简</button>
                 <button class="bkm-btn bkm-style-btn" data-style="novel" style="background:#f4ecd8; color:#3e2723; border:1px solid #8d6e63; font-family: serif;">📜 古典羊皮纸</button>
                 <button class="bkm-btn bkm-style-btn" data-style="cyber" style="background:#000000; color:#00ff00; border:1px solid #00ff00; font-family: monospace;">💻 赛博终端</button>
-                
                 <button class="bkm-btn bkm-style-btn" data-style="cute" style="background:#fff0f5; color:#d81b60; border:2px dashed #ffb6c1; border-radius:15px;">🌸 软萌初雪</button>
                 <button class="bkm-btn bkm-style-btn" data-style="ocean" style="background:linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color:#2c3e50; border:1px solid #fff;">🌊 盛夏海浪</button>
                 <button class="bkm-btn bkm-style-btn" data-style="matcha" style="background:#e8f5e9; color:#2e7d32; border:1px solid #81c784;">🍵 抹茶拿铁</button>
@@ -216,66 +215,15 @@ async function takeScreenshot(bm) {
     const formattedText = typeof showdown !== 'undefined' ? new showdown.Converter().makeHtml(safeText) : escapeHtml(safeText);
     const initialChar = bm.char ? bm.char.charAt(0).toUpperCase() : 'A';
     
-    // 2. 根据风格定义 CSS 变量
     let cssWrapper = ''; let cssCard = ''; let cssAvatar = ''; let cssName = ''; let cssTime = ''; let cssText = ''; let cssDivider = '';
-    
-    if (selectedStyle === 'dark') {
-        cssWrapper = 'background: #11111b;';
-        cssCard = 'background: rgba(30,30,46,0.9); border-radius: 16px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);';
-        cssAvatar = 'background: linear-gradient(135deg, #cba6f7, #f38ba8); color: #fff; border-radius: 50%;';
-        cssName = 'color: #cdd6f4; font-weight: bold; font-size: 1.3em;'; cssTime = 'color: #a6adc8;';
-        cssText = 'color: #bac2de; font-size: 1.1em; line-height: 1.7; font-family: sans-serif;';
-        cssDivider = 'border-bottom: 1px solid rgba(255,255,255,0.1);';
-    } else if (selectedStyle === 'light') {
-        cssWrapper = 'background: #e6e9ef;';
-        cssCard = 'background: #ffffff; border-radius: 20px; padding: 30px; box-shadow: 0 5px 20px rgba(0,0,0,0.05);';
-        cssAvatar = 'background: #e6e9ef; color: #4c4f69; border-radius: 50%; font-weight: 800;';
-        cssName = 'color: #1e1e2e; font-weight: 800; font-size: 1.2em;'; cssTime = 'color: #9ca0b0;';
-        cssText = 'color: #4c4f69; font-size: 1.05em; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;';
-        cssDivider = 'border-bottom: 1px solid rgba(0,0,0,0.05);';
-    } else if (selectedStyle === 'novel') {
-        cssWrapper = 'background: #d7ccc8;';
-        cssCard = 'background: #f4ecd8; padding: 40px; box-shadow: inset 0 0 50px rgba(0,0,0,0.05), 0 10px 20px rgba(0,0,0,0.1); border: 1px solid #d7ccc8;';
-        cssAvatar = 'background: transparent; color: #5d4037; border-radius: 0; font-family: serif; border-bottom: 2px solid #5d4037; height: auto; padding-bottom: 5px;';
-        cssName = 'color: #3e2723; font-weight: bold; font-size: 1.4em; font-family: serif;'; cssTime = 'color: #795548; font-family: serif;';
-        cssText = 'color: #212121; font-size: 1.15em; line-height: 2.0; font-family: "Georgia", serif; text-indent: 2em;';
-        cssDivider = 'border-bottom: none;';
-    } else if (selectedStyle === 'cyber') {
-        cssWrapper = 'background: #000000;';
-        cssCard = 'background: #050505; border-radius: 0; padding: 30px; border: 1px solid #00ff00; box-shadow: 0 0 15px rgba(0,255,0,0.2);';
-        cssAvatar = 'background: #002200; color: #00ff00; border-radius: 0; border: 1px solid #00ff00; font-family: monospace;';
-        cssName = 'color: #00ff00; font-weight: normal; font-size: 1.2em; font-family: monospace; text-transform: uppercase;'; cssTime = 'color: #008800; font-family: monospace;';
-        cssText = 'color: #00ff00; font-size: 1.05em; line-height: 1.5; font-family: monospace; text-shadow: 0 0 2px #00ff00;';
-        cssDivider = 'border-bottom: 1px dashed #00ff00;';
-    } else if (selectedStyle === 'cute') {
-        cssWrapper = 'background: #ffe4e1;';
-        cssCard = 'background: #fffafb; border-radius: 30px; padding: 35px; border: 4px dashed #ffb6c1; box-shadow: 0 10px 20px rgba(255, 182, 193, 0.3);';
-        cssAvatar = 'background: #ffb6c1; color: #fff; border-radius: 50%; box-shadow: 0 4px 10px rgba(255, 182, 193, 0.6);';
-        cssName = 'color: #d81b60; font-weight: 900; font-size: 1.3em;'; cssTime = 'color: #f06292;';
-        cssText = 'color: #880e4f; font-size: 1.1em; line-height: 1.6; font-family: "Comic Sans MS", "Arial Rounded MT Bold", sans-serif;';
-        cssDivider = 'border-bottom: 2px dotted #ffb6c1;';
-    } else if (selectedStyle === 'ocean') {
-        cssWrapper = 'background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);';
-        cssCard = 'background: rgba(255, 255, 255, 0.7); border-radius: 20px; padding: 30px; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15); border: 1px solid rgba(255, 255, 255, 0.4);';
-        cssAvatar = 'background: #ffffff; color: #4facfe; border-radius: 30%; box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);';
-        cssName = 'color: #2c3e50; font-weight: bold; font-size: 1.3em;'; cssTime = 'color: #5d6d7e;';
-        cssText = 'color: #34495e; font-size: 1.1em; line-height: 1.7;';
-        cssDivider = 'border-bottom: 1px solid rgba(255,255,255,0.6);';
-    } else if (selectedStyle === 'matcha') {
-        cssWrapper = 'background: #e8f5e9;';
-        cssCard = 'background: #ffffff; border-radius: 12px; padding: 30px; box-shadow: 0 10px 15px rgba(46, 125, 50, 0.05); border-left: 8px solid #66bb6a;';
-        cssAvatar = 'background: #a5d6a7; color: #1b5e20; border-radius: 10px;';
-        cssName = 'color: #2e7d32; font-weight: bold; font-size: 1.25em;'; cssTime = 'color: #81c784;';
-        cssText = 'color: #388e3c; font-size: 1.05em; line-height: 1.8;';
-        cssDivider = 'border-bottom: 1px solid #c8e6c9;';
-    } else if (selectedStyle === 'retro') {
-        cssWrapper = 'background: linear-gradient(to top, #fbc2eb 0%, #a6c1ee 100%);';
-        cssCard = 'background: #ffffff; border-radius: 0; padding: 30px; border: 3px solid #000000; box-shadow: 8px 8px 0px #ff90e8;';
-        cssAvatar = 'background: #ffff00; color: #000; border-radius: 0; border: 2px solid #000; box-shadow: 3px 3px 0px #000; font-weight:900;';
-        cssName = 'color: #000000; font-weight: 900; font-size: 1.4em; text-transform: uppercase; letter-spacing: 1px;'; cssTime = 'color: #666; font-weight: bold;';
-        cssText = 'color: #000000; font-size: 1.1em; line-height: 1.6; font-weight: 500;';
-        cssDivider = 'border-bottom: 3px solid #000;';
-    }
+    if (selectedStyle === 'dark') { cssWrapper = 'background: #11111b;'; cssCard = 'background: rgba(30,30,46,0.9); border-radius: 16px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);'; cssAvatar = 'background: linear-gradient(135deg, #cba6f7, #f38ba8); color: #fff; border-radius: 50%;'; cssName = 'color: #cdd6f4; font-weight: bold; font-size: 1.3em;'; cssTime = 'color: #a6adc8;'; cssText = 'color: #bac2de; font-size: 1.1em; line-height: 1.7; font-family: sans-serif;'; cssDivider = 'border-bottom: 1px solid rgba(255,255,255,0.1);'; } 
+    else if (selectedStyle === 'light') { cssWrapper = 'background: #e6e9ef;'; cssCard = 'background: #ffffff; border-radius: 20px; padding: 30px; box-shadow: 0 5px 20px rgba(0,0,0,0.05);'; cssAvatar = 'background: #e6e9ef; color: #4c4f69; border-radius: 50%; font-weight: 800;'; cssName = 'color: #1e1e2e; font-weight: 800; font-size: 1.2em;'; cssTime = 'color: #9ca0b0;'; cssText = 'color: #4c4f69; font-size: 1.05em; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;'; cssDivider = 'border-bottom: 1px solid rgba(0,0,0,0.05);'; } 
+    else if (selectedStyle === 'novel') { cssWrapper = 'background: #d7ccc8;'; cssCard = 'background: #f4ecd8; padding: 40px; box-shadow: inset 0 0 50px rgba(0,0,0,0.05), 0 10px 20px rgba(0,0,0,0.1); border: 1px solid #d7ccc8;'; cssAvatar = 'background: transparent; color: #5d4037; border-radius: 0; font-family: serif; border-bottom: 2px solid #5d4037; height: auto; padding-bottom: 5px;'; cssName = 'color: #3e2723; font-weight: bold; font-size: 1.4em; font-family: serif;'; cssTime = 'color: #795548; font-family: serif;'; cssText = 'color: #212121; font-size: 1.15em; line-height: 2.0; font-family: "Georgia", serif; text-indent: 2em;'; cssDivider = 'border-bottom: none;'; } 
+    else if (selectedStyle === 'cyber') { cssWrapper = 'background: #000000;'; cssCard = 'background: #050505; border-radius: 0; padding: 30px; border: 1px solid #00ff00; box-shadow: 0 0 15px rgba(0,255,0,0.2);'; cssAvatar = 'background: #002200; color: #00ff00; border-radius: 0; border: 1px solid #00ff00; font-family: monospace;'; cssName = 'color: #00ff00; font-weight: normal; font-size: 1.2em; font-family: monospace; text-transform: uppercase;'; cssTime = 'color: #008800; font-family: monospace;'; cssText = 'color: #00ff00; font-size: 1.05em; line-height: 1.5; font-family: monospace; text-shadow: 0 0 2px #00ff00;'; cssDivider = 'border-bottom: 1px dashed #00ff00;'; } 
+    else if (selectedStyle === 'cute') { cssWrapper = 'background: #ffe4e1;'; cssCard = 'background: #fffafb; border-radius: 30px; padding: 35px; border: 4px dashed #ffb6c1; box-shadow: 0 10px 20px rgba(255, 182, 193, 0.3);'; cssAvatar = 'background: #ffb6c1; color: #fff; border-radius: 50%; box-shadow: 0 4px 10px rgba(255, 182, 193, 0.6);'; cssName = 'color: #d81b60; font-weight: 900; font-size: 1.3em;'; cssTime = 'color: #f06292;'; cssText = 'color: #880e4f; font-size: 1.1em; line-height: 1.6; font-family: "Comic Sans MS", "Arial Rounded MT Bold", sans-serif;'; cssDivider = 'border-bottom: 2px dotted #ffb6c1;'; } 
+    else if (selectedStyle === 'ocean') { cssWrapper = 'background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);'; cssCard = 'background: rgba(255, 255, 255, 0.7); border-radius: 20px; padding: 30px; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15); border: 1px solid rgba(255, 255, 255, 0.4);'; cssAvatar = 'background: #ffffff; color: #4facfe; border-radius: 30%; box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);'; cssName = 'color: #2c3e50; font-weight: bold; font-size: 1.3em;'; cssTime = 'color: #5d6d7e;'; cssText = 'color: #34495e; font-size: 1.1em; line-height: 1.7;'; cssDivider = 'border-bottom: 1px solid rgba(255,255,255,0.6);'; } 
+    else if (selectedStyle === 'matcha') { cssWrapper = 'background: #e8f5e9;'; cssCard = 'background: #ffffff; border-radius: 12px; padding: 30px; box-shadow: 0 10px 15px rgba(46, 125, 50, 0.05); border-left: 8px solid #66bb6a;'; cssAvatar = 'background: #a5d6a7; color: #1b5e20; border-radius: 10px;'; cssName = 'color: #2e7d32; font-weight: bold; font-size: 1.25em;'; cssTime = 'color: #81c784;'; cssText = 'color: #388e3c; font-size: 1.05em; line-height: 1.8;'; cssDivider = 'border-bottom: 1px solid #c8e6c9;'; } 
+    else if (selectedStyle === 'retro') { cssWrapper = 'background: linear-gradient(to top, #fbc2eb 0%, #a6c1ee 100%);'; cssCard = 'background: #ffffff; border-radius: 0; padding: 30px; border: 3px solid #000000; box-shadow: 8px 8px 0px #ff90e8;'; cssAvatar = 'background: #ffff00; color: #000; border-radius: 0; border: 2px solid #000; box-shadow: 3px 3px 0px #000; font-weight:900;'; cssName = 'color: #000000; font-weight: 900; font-size: 1.4em; text-transform: uppercase; letter-spacing: 1px;'; cssTime = 'color: #666; font-weight: bold;'; cssText = 'color: #000000; font-size: 1.1em; line-height: 1.6; font-weight: 500;'; cssDivider = 'border-bottom: 3px solid #000;'; }
 
     const container = document.createElement('div');
     container.style.cssText = `position:fixed; top:-9999px; left:0; width:650px; z-index:-9999; box-sizing:border-box; text-align: left; padding: 40px; ${cssWrapper}`;
@@ -301,14 +249,7 @@ async function takeScreenshot(bm) {
 
     try {
         await new Promise(r => setTimeout(r, 800)); 
-        
-        const canvas = await window.html2canvas(container, { 
-            backgroundColor: null, 
-            scale: 2, 
-            useCORS: true, 
-            logging: false 
-        });
-        
+        const canvas = await window.html2canvas(container, { backgroundColor: null, scale: 2, useCORS: true, logging: false });
         const url = canvas.toDataURL('image/png');
         
         const imgHtml = `
@@ -344,35 +285,44 @@ async function takeScreenshot(bm) {
 }
 // =========================================================
 
+// 【核心存储逻辑：独立提取，支持过滤和去重】
+async function doSaveMessage(text, msg, mesId, currentChatId) {
+    // 保存时直接剔除设置中配置的标签（如 <think>）
+    if (extensionSettings[MODULE_NAME].filterOnSave) {
+        text = applyTagFilter(text);
+    }
+    
+    if (!text || text.trim() === "") return toastr.warning("消息为空或标签内容已被完全过滤，无实际内容可收藏。");
+
+    // 检查是否已经存在完全相同的记录（防手滑连续点击）
+    const isDuplicate = extensionSettings[MODULE_NAME].bookmarks.some(b => 
+        b.text === text && b.chatId === currentChatId && b.floor === mesId
+    );
+    if (isDuplicate) {
+        return toastr.warning("⚠️ 这条消息您已经收藏过了哦！");
+    }
+
+    extensionSettings[MODULE_NAME].bookmarks.push({ 
+        time: new Date().toLocaleString(), 
+        char: getRealCharName(msg), 
+        role: msg.is_user ? 'User' : 'AI', 
+        text: text, 
+        floor: mesId, 
+        chatId: currentChatId 
+    });
+    context.saveSettingsDebounced();
+    toastr.success(`✨ 成功收藏第 ${mesId} 楼！`);
+}
+
 async function quickSaveLatest() {
     try {
         const lastMsgs = context.chat.slice(-1); 
         if (!lastMsgs || lastMsgs.length === 0) return toastr.warning("没有可收藏的消息。");
+        const currentFloor = context.chat.length - 1;
         const lastMsg = lastMsgs[0];
         const textToSave = (lastMsg.swipes && lastMsg.swipes.length > 0) ? lastMsg.swipes[lastMsg.swipe_id || 0] : lastMsg.mes;
-        if (!textToSave || textToSave.trim() === "") return toastr.warning("消息为空。");
         
-        const currentChatId = context.getCurrentChatId();
-        const currentFloor = context.chat.length - 1;
-        
-        // 【新增防手滑机制】：检查是否已经存在完全相同的记录
-        const isDuplicate = extensionSettings[MODULE_NAME].bookmarks.some(b => 
-            b.text === textToSave && b.chatId === currentChatId && b.floor === currentFloor
-        );
-        if (isDuplicate) {
-            return toastr.warning("⚠️ 这条消息您刚才已经收藏过啦，不用重复点哦！");
-        }
-
-        extensionSettings[MODULE_NAME].bookmarks.push({ 
-            time: new Date().toLocaleString(), 
-            char: getRealCharName(lastMsg), 
-            role: lastMsg.is_user ? 'User' : 'AI', 
-            text: textToSave, 
-            floor: currentFloor, 
-            chatId: currentChatId 
-        });
-        context.saveSettingsDebounced();
-        toastr.success("✨ 成功收藏最新回复！");
+        await doSaveMessage(textToSave, lastMsg, currentFloor, context.getCurrentChatId());
     } catch (e) { toastr.error("❌ 收藏失败。"); }
 }
 
@@ -533,7 +483,7 @@ async function downloadData(content, filename, mimeType) {
 
 function generateTxtContent(bms) {
     let txt = `=== 全局精选收藏夹 (共 ${bms.length} 条) ===\n\n`;
-    const sortedBms = [...bms].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
+    const sortedBms =[...bms].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
     sortedBms.forEach((bm, i) => { 
         const filteredText = applyTagFilter(bm.text || "");
         txt += `[#${i+1}] 剧本: ${bm.char || "未知"} | 发送者: ${bm.role || "未知"} | 楼层: ${bm.floor !== undefined ? bm.floor : '未知'} | 时间: ${bm.time || "未知"}\n${filteredText}\n--------------------------------------------------\n\n`; 
@@ -589,18 +539,8 @@ async function openMainMenu() {
                 if (isNaN(mesId) || !context.chat[mesId]) { toastr.error("❌ 找不到该楼层！"); break; }
                 const msg = context.chat[mesId];
                 const text = (msg.swipes && msg.swipes.length > 0) ? msg.swipes[msg.swipe_id || 0] : msg.mes;
-                const currentChatId = context.getCurrentChatId();
                 
-                // 【新增防手滑机制】：针对指定楼层收藏
-                const isDuplicate = allBms.some(b => b.text === text && b.chatId === currentChatId && b.floor === mesId);
-                if (isDuplicate) {
-                    toastr.warning("⚠️ 这条消息之前已经收藏过了哦！");
-                    break;
-                }
-
-                allBms.push({ time: new Date().toLocaleString(), char: getRealCharName(msg), role: msg.is_user ? 'User' : 'AI', text: text, floor: mesId, chatId: currentChatId });
-                context.saveSettingsDebounced();
-                toastr.success(`✨ 成功收藏第 ${mesId} 楼！`);
+                await doSaveMessage(text, msg, mesId, context.getCurrentChatId());
                 break;
                 
             case 16:
@@ -820,10 +760,35 @@ function toggleFAB() {
     extensionSettings[MODULE_NAME].showFloatingButton ? $('#bkm-fab-container').css('display', 'flex') : $('#bkm-fab-container').css('display', 'none');
 }
 
+// 【书签按钮：直接在每条消息右上角加上淡紫色的书签】
+function addMessageBookmarkButtons() {
+    $('#chat .mes').each(function() {
+        const mesButtons = $(this).find('.mes_buttons');
+        // 检查是否已经加了，防止重复添加
+        if (mesButtons.length > 0 && mesButtons.find('.bkm-mes-btn').length === 0) {
+            // 生成淡紫色的【书签】按钮
+            const btn = $(`<div class="mes_button bkm-mes-btn has-tooltip" data-tooltip="快速收藏此消息"><i class="fa-solid fa-bookmark" style="color:#cba6f7;"></i></div>`);
+            btn.on('click', async function() {
+                const mesIdStr = $(this).closest('.mes').attr('mesid');
+                const mesId = parseInt(mesIdStr);
+                if (isNaN(mesId) || !context.chat[mesId]) return toastr.error("找不到该楼层！");
+                
+                const msg = context.chat[mesId];
+                const text = (msg.swipes && msg.swipes.length > 0) ? msg.swipes[msg.swipe_id || 0] : msg.mes;
+                const currentChatId = context.getCurrentChatId();
+                
+                await doSaveMessage(text, msg, mesId, currentChatId);
+            });
+            // 放到消息按钮区的最前面
+            mesButtons.prepend(btn);
+        }
+    });
+}
+
 async function initUI() {
     loadSettings();
 
-    const possiblePaths =['/scripts/extensions/third-party/shoucang/settings.html', '/scripts/extensions/third-party/SillyTavern-shoucang/settings.html', '/scripts/extensions/third-party/shoucang-main/settings.html'];
+    const possiblePaths =['/scripts/extensions/third-party/shoucang/settings.html', '/scripts/extensions/third-party/SillyTavern-shoucang/settings.html', '/scripts/extensions/third-party/shoucang-main/settings.html', '/scripts/extensions/third-party/global_bookmarks_pro/settings.html'];
     for (const path of possiblePaths) {
         try {
             const settingsHtml = await $.get(path);
@@ -838,6 +803,34 @@ async function initUI() {
                 $('#bkm-setting-remove-before').prop('checked', extensionSettings[MODULE_NAME].removeBeforeClosing).on('change', (e) => {
                     extensionSettings[MODULE_NAME].removeBeforeClosing = $(e.target).prop('checked'); context.saveSettingsDebounced();
                 });
+
+                // 新增：保存时过滤开关绑定
+                $('#bkm-setting-filter-on-save').prop('checked', extensionSettings[MODULE_NAME].filterOnSave).on('change', (e) => {
+                    extensionSettings[MODULE_NAME].filterOnSave = $(e.target).prop('checked'); context.saveSettingsDebounced();
+                });
+
+                // 新增：瘦身按钮逻辑（清洗现有收藏）
+                $('#bkm-btn-clean-existing').on('click', async () => {
+                    const bms = extensionSettings[MODULE_NAME].bookmarks;
+                    if (!bms || bms.length === 0) return toastr.info("收藏夹为空，不需要清理。");
+                    
+                    const confirmRes = await context.callGenericPopup("确定要清理所有现有收藏中的标签内容吗？<br><br><span style='color:#ff6666;'>清洗后，原记录里标签内的思维链、摘要文字将被永久删除，将大幅度释放存储空间。</span>", context.POPUP_TYPE.CONFIRM, "", { okButton: "确定清理瘦身", cancelButton: "取消" });
+                    
+                    if (confirmRes === context.POPUP_RESULT.AFFIRMATIVE) {
+                        let cleanedCount = 0;
+                        bms.forEach(bm => {
+                            const oldText = bm.text;
+                            const newText = applyTagFilter(oldText);
+                            if (oldText !== newText) {
+                                bm.text = newText;
+                                cleanedCount++;
+                            }
+                        });
+                        context.saveSettingsDebounced();
+                        toastr.success(`🧹 瘦身大扫除完成！共洗净了 ${cleanedCount} 条记录的冗余标签！`);
+                    }
+                });
+
                 break;
             }
         } catch (e) { continue; }
@@ -851,6 +844,13 @@ async function initUI() {
     }
     toggleFAB();
 
+    // 绑定新消息、刷页、重绘时，自动追加消息上的书签按钮
+    eventSource.on(event_types.CHAT_CHANGED, addMessageBookmarkButtons);
+    eventSource.on(event_types.MESSAGE_SWIPED, addMessageBookmarkButtons);
+    eventSource.on(event_types.MESSAGE_UPDATED, addMessageBookmarkButtons);
+    setTimeout(addMessageBookmarkButtons, 1000);
+
+    // 【放心，QR斜杠命令原封不动保留在这里！】
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({ name: 'bkm_latest', callback: async () => { await quickSaveLatest(); return ""; }, returns: '无返回值', helpString: '快速收藏最新消息' }));
 }
 
