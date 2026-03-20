@@ -50,6 +50,47 @@ function applyTagFilter(text) {
     return result.trim();
 }
 
+function getRenderedHtml(text, forceOpen = false) {
+    if (!text) return "";
+    
+    let magicBlocks = [];
+    let tempText = text;
+    const openAttr = forceOpen ? "open" : "";
+    
+    // 处理注释：不再折叠，去掉特殊颜色，直接变成普通的转义文本（防止被浏览器当真注释隐藏）
+    tempText = tempText.replace(/<!--([\s\S]*?)-->/g, function(match, p1) {
+        magicBlocks.push(`&lt;!--${escapeHtml(p1)}--&gt;`);
+        return `MAGICBLOCKPLACEHOLDER${magicBlocks.length - 1}ENDPLACEHOLDER`;
+    });
+
+    // 保护特殊的思考标签（依然保持折叠）
+    const tRegex = new RegExp('\\x3Cthink\\x3E([\\s\\S]*?)\\x3C/think\\x3E', 'gi');
+    tempText = tempText.replace(tRegex, function(match, p1) {
+        magicBlocks.push(`<details ${openAttr} style="border-left: 4px solid #cba6f7; background: rgba(203, 166, 247, 0.15); padding: 8px 12px; margin: 10px 0; border-radius: 0 8px 8px 0; font-size: 0.95em; color: var(--SmartThemeBodyColor); opacity: 0.9; text-align: left; display: block;">
+<summary style="color: #cba6f7; font-weight: bold; font-family: monospace; user-select: none; cursor: pointer; outline: none;">&lt;think&gt; (点击展开思考过程)</summary>
+<div style="margin-top: 8px; white-space: pre-wrap; font-family: inherit; border-top: 1px dashed rgba(203, 166, 247, 0.3); padding-top: 8px;">${escapeHtml(p1.trim())}</div></details>`);
+        return `MAGICBLOCKPLACEHOLDER${magicBlocks.length - 1}ENDPLACEHOLDER`;
+    });
+
+    // Markdown 渲染
+    let html = "";
+    if (typeof showdown !== 'undefined') {
+        const converter = new showdown.Converter({ simpleLineBreaks: true });
+        html = converter.makeHtml(tempText);
+    } else {
+        html = escapeHtml(tempText).replace(/\n/g, '<br>');
+    }
+
+    // 替换回魔法块
+    magicBlocks.forEach((block, index) => {
+        let regexP = new RegExp(`<p>MAGICBLOCKPLACEHOLDER${index}ENDPLACEHOLDER<\\/p>`, 'g');
+        let regexRaw = new RegExp(`MAGICBLOCKPLACEHOLDER${index}ENDPLACEHOLDER`, 'g');
+        html = html.replace(regexP, block).replace(regexRaw, block);
+    });
+
+    return html;
+}
+
 function loadSettings() {
     if (!extensionSettings[MODULE_NAME]) extensionSettings[MODULE_NAME] = {};
     for (const key in defaultSettings) {
@@ -66,17 +107,19 @@ async function restoreBookmarkToChat(bm) {
         let optionsHtml = `<div class="bkm-list-container"><h3 class="bkm-title">↩️ 请选择导回方式</h3><div class="bkm-flex-col">`;
         
         if (bm.floor !== undefined) {
-            optionsHtml += `<button id="res-orig" class="bkm-btn highlight" style="font-weight:bold;">🔙 智能恢复到第 ${bm.floor} 楼 (替换原有)</button>`;
+            optionsHtml += `<button id="res-orig" class="bkm-btn highlight" style="font-weight:bold;">🔙 恢复到第 ${bm.floor} 楼 (作为新一页并立刻翻到这页)</button>`;
+            optionsHtml += `<button id="res-orig-hidden" class="bkm-btn" style="color: #a6e3a1;">📖 悄悄塞入第 ${bm.floor} 楼 (作为新一页，但保持当前画面不动)</button>`;
         }
         optionsHtml += `<button id="res-new" class="bkm-btn">🆕 作为全新消息发送到聊天最末尾</button>`;
         optionsHtml += `<button id="res-insert" class="bkm-btn" style="color: #f9e2af;">⬇️ 强行插队 (作为新楼层插入到某楼之后)</button>`;
-        optionsHtml += `<button id="res-swipe" class="bkm-btn">📖 作为隐藏分页塞入某楼 (防刷屏)</button>`;
+        optionsHtml += `<button id="res-swipe" class="bkm-btn">📖 作为隐藏分页塞入其他楼层</button>`;
         optionsHtml += `</div></div>`;
 
         const choice = await context.callGenericPopup(optionsHtml, context.POPUP_TYPE.TEXT, "", {
             okButton: false, cancelButton: "取消", allowVerticalScrolling: true,
             onOpen: async (popup) => {
                 $('#res-orig').on('click', () => popup.complete(1));
+                $('#res-orig-hidden').on('click', () => popup.complete(5));
                 $('#res-new').on('click', () => popup.complete(2));
                 $('#res-insert').on('click', () => popup.complete(4));
                 $('#res-swipe').on('click', () => popup.complete(3));
@@ -106,40 +149,63 @@ async function restoreBookmarkToChat(bm) {
             const newMsg = createStandardMsg();
             context.chat.push(newMsg);
             if (typeof context.saveChat === 'function') await context.saveChat();
-            if (typeof context.addOneMessage === 'function') context.addOneMessage(newMsg);
-            else if (typeof context.printMessages === 'function') context.printMessages();
+            if (typeof context.reloadCurrentChat === 'function') await context.reloadCurrentChat();
             if (typeof context.scrollChatToBottom === 'function') context.scrollChatToBottom();
         };
 
-        const injectSwipeToFloor = async (targetFloor) => {
+        const injectSwipeToFloor = async (targetFloor, switchToIt = true) => {
             const targetMsg = context.chat[targetFloor];
-            if (!targetMsg) return toastr.error("❌ 找不到目标楼层！");
-            if (!targetMsg.swipes) targetMsg.swipes = [targetMsg.mes || ""];
-            if (!targetMsg.swipe_info) targetMsg.swipe_info = [targetMsg.extra || {}];
+            if (!targetMsg) {
+                toastr.error("❌ 找不到目标楼层！");
+                return null;
+            }
+
+            if (!targetMsg.swipes || targetMsg.swipes.length === 0) {
+                targetMsg.swipes = [targetMsg.mes || ""];
+                targetMsg.swipe_info = [targetMsg.extra || {}];
+                targetMsg.swipe_id = 0;
+            }
 
             targetMsg.swipes.push(safeText);
             targetMsg.swipe_info.push({ send_date: Date.now(), extra: { bookmark_restored: true } });
-            targetMsg.swipe_id = targetMsg.swipes.length - 1;
-            targetMsg.mes = safeText;
+            
+            if (switchToIt) {
+                targetMsg.swipe_id = targetMsg.swipes.length - 1;
+                targetMsg.mes = safeText;
+            }
 
             if (typeof context.saveChat === 'function') await context.saveChat();
-            if (typeof context.updateMessageBlock === 'function') context.updateMessageBlock(targetFloor, targetMsg);
+            
+            // 强力重绘当前聊天，确保页码和文本绝对同步刷新
+            if (typeof context.reloadCurrentChat === 'function') {
+                await context.reloadCurrentChat();
+            } else if (typeof context.updateMessageBlock === 'function') {
+                context.updateMessageBlock(targetFloor, targetMsg);
+            }
+
+            if (switchToIt) {
+                setTimeout(() => {
+                    const mesEl = $(`#chat .mes[mesid="${targetFloor}"]`);
+                    if (mesEl.length > 0) mesEl[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 500);
+            }
+
             return targetMsg;
         };
 
-        if (choice === 1) {
+        if (choice === 1 || choice === 5) {
             const targetFloor = bm.floor;
+            const switchToIt = (choice === 1);
+            
             if (targetFloor > lastMessageId) {
                 await appendNewMessage();
-                toastr.success(`✅ 检测到原楼层已被删除，已在末尾为您重新生成！`);
+                toastr.success(`✅ 原楼层已不存在，已在末尾为您重新生成！`);
             } else {
-                const targetMsg = context.chat[targetFloor];
-                if (targetMsg.is_user !== isUser) {
-                    const confirmInject = await context.callGenericPopup(`<div style="text-align:left;">⚠️ <b>角色不匹配</b><br><br>现在的第 ${targetFloor} 楼是别人占用的。<br>强行插入会导致错乱。建议取消并选择【作为全新消息发送】。</div>`, context.POPUP_TYPE.CONFIRM, "", { okButton: "我要强行替换这层楼", cancelButton: "取消" });
-                    if (confirmInject !== context.POPUP_RESULT.AFFIRMATIVE) return;
+                const updatedMsg = await injectSwipeToFloor(targetFloor, switchToIt);
+                if (updatedMsg) {
+                    if (switchToIt) toastr.success(`✅ 已恢复到第 ${targetFloor} 楼并切换至最新页！`);
+                    else toastr.success(`✅ 已悄悄塞入第 ${targetFloor} 楼 (未替换当前画面)！`);
                 }
-                const updatedMsg = await injectSwipeToFloor(targetFloor);
-                toastr.success(`✅ 已成功恢复到第 ${targetFloor} 楼 (第 ${updatedMsg.swipe_id + 1} 页)！`);
             }
         } 
         else if (choice === 2) {
@@ -151,11 +217,11 @@ async function restoreBookmarkToChat(bm) {
             if (!input) return;
             const tf = parseInt(input);
             if (isNaN(tf) || tf < 0 || tf > lastMessageId) return toastr.error(`❌ 无效的楼层号！`);
-            const updatedMsg = await injectSwipeToFloor(tf);
-            toastr.success(`✅ 已塞入第 ${tf} 楼 (第 ${updatedMsg.swipe_id + 1} 页)！`);
+            const updatedMsg = await injectSwipeToFloor(tf, false); 
+            if (updatedMsg) toastr.success(`✅ 已塞入第 ${tf} 楼！`);
         }
         else if (choice === 4) { 
-            const input = await context.callGenericPopup(`请输入要在哪一楼【之后】插入新楼层 (0 - ${lastMessageId})：`, context.POPUP_TYPE.INPUT, "", { cancelButton: "取消" });
+            const input = await context.callGenericPopup(`请输入要在哪一楼【之后】插入 (0 - ${lastMessageId})：`, context.POPUP_TYPE.INPUT, "", { cancelButton: "取消" });
             if (!input) return;
             const tf = parseInt(input);
             if (isNaN(tf) || tf < 0 || tf > lastMessageId) return toastr.error(`❌ 无效的楼层号！`);
@@ -163,14 +229,12 @@ async function restoreBookmarkToChat(bm) {
             const newMsg = createStandardMsg();
             context.chat.splice(tf + 1, 0, newMsg);
             if (typeof context.saveChat === 'function') await context.saveChat();
-            
-            toastr.info("🔄 正在重绘聊天界面...");
             if (typeof context.reloadCurrentChat === 'function') await context.reloadCurrentChat();
             toastr.success(`✅ 已成功插队到第 ${tf + 1} 楼！`);
         }
     } catch (e) { 
         console.error(e);
-        toastr.error("❌ 导回失败！请查看控制台。"); 
+        toastr.error("❌ 导回失败！"); 
     }
 }
 
@@ -211,8 +275,8 @@ async function takeScreenshot(bm) {
 
     toastr.info("📸 正在施展换装魔法...");
 
-    const safeText = applyTagFilter(bm.text || "*(内容丢失)*");
-    const formattedText = typeof showdown !== 'undefined' ? new showdown.Converter().makeHtml(safeText) : escapeHtml(safeText);
+    const safeText = bm.text || "*(内容丢失)*";
+    const formattedText = getRenderedHtml(safeText); // 魔法渲染替换
     const initialChar = bm.char ? bm.char.charAt(0).toUpperCase() : 'A';
     
     let cssWrapper = ''; let cssCard = ''; let cssAvatar = ''; let cssName = ''; let cssTime = ''; let cssText = ''; let cssDivider = '';
@@ -347,6 +411,7 @@ async function showBookmarksUI(bms, titleStr) {
     groupedBookmarks.forEach((group, gIndex) => {
         const floorText = group.floor !== undefined ? `第 ${group.floor} 楼` : `未知楼层`;
         const total = group.items.length;
+        // 预览内容为了美观仍然过滤掉标签，只显示正文前部分
         const firstText = applyTagFilter(group.items[0].text || "*(内容丢失)*");
         let previewText = escapeHtml(firstText.replace(/\n/g, ' ').substring(0, 35));
         if (firstText.length > 35) previewText += '...';
@@ -382,8 +447,8 @@ async function showBookmarksUI(bms, titleStr) {
                     <div class="bkm-swipe-content-wrapper">`;
         
         group.items.forEach((item, iIndex) => {
-            const safeItemText = applyTagFilter(item.text || "*(内容丢失)*");
-            const formattedText = typeof showdown !== 'undefined' ? new showdown.Converter().makeHtml(safeItemText) : escapeHtml(safeItemText);
+            const safeItemText = item.text || "*(内容丢失)*";
+            const formattedText = getRenderedHtml(safeItemText); // 魔法渲染替换
             
             htmlContent += `
                         <div id="bkm-content-${gIndex}-${iIndex}" style="display: ${iIndex === 0 ? 'block' : 'none'};">
@@ -437,16 +502,16 @@ async function showMultiSelectUI(items, config) {
     htmlContent += `<div class="bkm-grid"><button id="btn-sel-all" class="bkm-btn">✅ 全选</button><button id="btn-sel-none" class="bkm-btn">❌ 全不选</button></div><div class="bkm-flex-col">`;
     
     items.forEach((item, index) => {
-        const formattedFullText = typeof showdown !== 'undefined' ? new showdown.Converter().makeHtml(item.fullText) : escapeHtml(item.fullText);
+        const formattedFullText = getRenderedHtml(item.fullText); // 魔法渲染
         htmlContent += `
-        <div class="bkm-group-card" style="padding:12px;">
-            <div style="display:flex; align-items:flex-start; gap: 10px;">
+        <div class="bkm-group-card" style="padding:12px; width: 100%; box-sizing: border-box; display: block;">
+            <div style="display:flex; align-items:flex-start; gap: 10px; width: 100%;">
                 <input type="checkbox" id="cb-${index}" class="bkm-sel-cb" data-value="${item.value}" style="width:20px; height:20px; margin-top:2px; flex-shrink:0;">
-                <label for="cb-${index}" style="font-size: 0.95em; flex: 1; line-height:1.4; word-break: break-all; margin:0; text-align: left;">${item.label}</label>
+                <label for="cb-${index}" style="font-size: 0.95em; flex: 1; min-width: 0; line-height:1.4; word-break: break-all; margin:0; text-align: left;">${item.label}</label>
             </div>
-            <details class="bkm-details" style="margin-top: 8px; margin-left: 30px;">
+            <details class="bkm-details" style="margin-top: 8px; margin-left: 0px; padding-left: 30px; box-sizing: border-box; width: 100%;">
                 <summary style="font-size: 0.85em; color: var(--SmartThemeQuoteColor); text-align: left;">(点击展开完整内容)</summary>
-                <div class="mes_text bkm-rendered-text" style="margin-top: 8px;">${formattedFullText}</div>
+                <div class="mes_text bkm-rendered-text" style="margin-top: 8px; white-space: normal; word-break: break-all;">${formattedFullText}</div>
             </details>
         </div>`;
     });
@@ -594,7 +659,11 @@ async function openMainMenu() {
                 
             case 18:
                 if (allBms.length === 0) { toastr.info("收藏夹为空。"); break; }
-                const itemsToDelete = allBms.map((bm, i) => ({ label: `[${escapeHtml(bm.char)} - 第${bm.floor}楼] ${escapeHtml(applyTagFilter(bm.text).substring(0, 25))}...`, value: i, fullText: applyTagFilter(bm.text) }));
+                const itemsToDelete =[...allBms].reverse().map((bm, i) => ({ 
+                    label: `[${escapeHtml(bm.char)} - 第${bm.floor}楼] ${escapeHtml((bm.text || "").substring(0, 25))}...`, 
+                    value: allBms.length - 1 - i, 
+                    fullText: bm.text 
+                }));
                 const indicesToDelete = await showMultiSelectUI(itemsToDelete, { title: '🗑️ 勾选要删除的收藏', okButtonText: '永久删除', color: '#ff6666' });
                 if (indicesToDelete && indicesToDelete.length > 0) {
                     indicesToDelete.sort((a, b) => b - a).forEach(idx => allBms.splice(idx, 1));
@@ -760,31 +829,6 @@ function toggleFAB() {
     extensionSettings[MODULE_NAME].showFloatingButton ? $('#bkm-fab-container').css('display', 'flex') : $('#bkm-fab-container').css('display', 'none');
 }
 
-// 【书签按钮：直接在每条消息右上角加上淡紫色的书签】
-function addMessageBookmarkButtons() {
-    $('#chat .mes').each(function() {
-        const mesButtons = $(this).find('.mes_buttons');
-        // 检查是否已经加了，防止重复添加
-        if (mesButtons.length > 0 && mesButtons.find('.bkm-mes-btn').length === 0) {
-            // 生成淡紫色的【书签】按钮
-            const btn = $(`<div class="mes_button bkm-mes-btn has-tooltip" data-tooltip="快速收藏此消息"><i class="fa-solid fa-bookmark" style="color:#cba6f7;"></i></div>`);
-            btn.on('click', async function() {
-                const mesIdStr = $(this).closest('.mes').attr('mesid');
-                const mesId = parseInt(mesIdStr);
-                if (isNaN(mesId) || !context.chat[mesId]) return toastr.error("找不到该楼层！");
-                
-                const msg = context.chat[mesId];
-                const text = (msg.swipes && msg.swipes.length > 0) ? msg.swipes[msg.swipe_id || 0] : msg.mes;
-                const currentChatId = context.getCurrentChatId();
-                
-                await doSaveMessage(text, msg, mesId, currentChatId);
-            });
-            // 放到消息按钮区的最前面
-            mesButtons.prepend(btn);
-        }
-    });
-}
-
 async function initUI() {
     loadSettings();
 
@@ -844,14 +888,38 @@ async function initUI() {
     }
     toggleFAB();
 
-    // 绑定新消息、刷页、重绘时，自动追加消息上的书签按钮
-    eventSource.on(event_types.CHAT_CHANGED, addMessageBookmarkButtons);
-    eventSource.on(event_types.MESSAGE_SWIPED, addMessageBookmarkButtons);
-    eventSource.on(event_types.MESSAGE_UPDATED, addMessageBookmarkButtons);
-    setTimeout(addMessageBookmarkButtons, 1000);
-
-    // 【放心，QR斜杠命令原封不动保留在这里！】
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({ name: 'bkm_latest', callback: async () => { await quickSaveLatest(); return ""; }, returns: '无返回值', helpString: '快速收藏最新消息' }));
 }
 
 eventSource.on(event_types.APP_READY, initUI);
+
+$(document).on('click', '#global-bookmarks .mes_reasoning_header, #global-bookmarks .reasoning-header', function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const $header = $(this);
+    const $content = $header.next('.mes_reasoning_content, .reasoning-content');
+    $content.slideToggle(200, function() {
+        $header.find('.fa-chevron-down').toggleClass('fa-rotate-180', $content.is(':visible'));
+    });
+});
+
+// ==========================================
+// 终极灭光：拦截快捷回复按钮的点击，阻止酒馆闪烁绿光
+// ==========================================
+document.addEventListener('click', function(e) {
+    // 寻找被点击的快捷回复按钮
+    const qrBtn = e.target.closest('.qr--button, .qr-button');
+    if (qrBtn) {
+        const btnText = qrBtn.textContent.trim();
+        // 只要你的按钮名字里包含 "收藏"，就直接拦截！
+        if (btnText === '收藏' || btnText.includes('收藏')) {
+            e.preventDefault();
+            e.stopPropagation(); // 强行阻断酒馆的原生事件，不让它触发斜杠命令
+            
+            // 悄悄在后台调用咱们的函数，并且因为是无痕调用，不会有绿光
+            if (typeof quickSaveLatest === 'function') {
+                quickSaveLatest();
+            }
+        }
+    }
+}, true); // <-- 这里的 true 是灵魂，代表在“捕获阶段”最高优先级拦截

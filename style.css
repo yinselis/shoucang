@@ -21,13 +21,15 @@
     transform: scale(0.95);
 }
 
-/* 基础容器 */
+/* 基础容器 - 增加了防溢出保护 */
 .bkm-list-container {
     padding: 10px 5px;
     width: 100%;
+    max-width: 100vw;
     box-sizing: border-box;
     font-family: sans-serif;
     text-align: left !important;
+    overflow-x: hidden;
 }
 
 /* 标题 */
@@ -88,37 +90,37 @@
     overflow: hidden;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     text-align: left !important;
+    width: 100%;
+    box-sizing: border-box;
 }
 
-/* ================== 【本次核心修复】 ================== */
 .bkm-group-header {
     background: var(--SmartThemeButtonBackgroundColor);
     padding: 12px 15px;
     display: flex;
-    flex-direction: column; /* 【改动】改为垂直排列，分成上下两行 */
+    flex-direction: column; 
     align-items: flex-start;
-    gap: 8px; /* 上下行之间的间距 */
+    gap: 8px; 
 }
 
 /* 第一行：名字和楼层的容器 */
 .bkm-group-info {
     display: flex;
-    align-items: flex-start; /* 顶部对齐，防止名字变多行时楼层掉下来 */
-    width: 100%; /* 占满整行宽度 */
+    align-items: flex-start; 
+    width: 100%; 
     gap: 8px; 
 }
 
-/* 角色名字 - 解除限制，让它不再被遮挡 */
+/* 角色名字 */
 .bkm-avatar-name {
     color: var(--SmartThemeUserColor);
     font-weight: bold;
     font-size: 1.05em;
-    white-space: normal; /* 【改动】允许自然换行，不再强制一行 */
-    word-break: break-word; /* 防止奇怪的超长无空格字符撑破排版 */
-    /* 已经去掉了 overflow: hidden 和 text-overflow: ellipsis */
+    white-space: normal; 
+    word-break: break-word; 
 }
 
-/* 楼层标签 - 固定在右上角 */
+/* 楼层标签 */
 .bkm-floor-badge {
     background: var(--SmartThemeBorderColor);
     color: var(--SmartThemeBodyColor);
@@ -127,19 +129,18 @@
     font-size: 0.8em;
     white-space: nowrap; 
     flex-shrink: 0; 
-    margin-left: auto; /* 【关键魔法】自动把楼层推挤到这行的最右边！ */
-    margin-top: 2px; /* 稍微往下压一点点，跟名字中心对齐 */
+    margin-left: auto; 
+    margin-top: 2px; 
 }
 
-/* 时间戳 - 独立作为第二行 */
+/* 时间戳 */
 .bkm-time-info {
     font-size: 0.8em;
     color: var(--SmartThemeBodyColor);
     white-space: nowrap;
-    align-self: flex-start; /* 时间显示在第二行的左侧。如果你喜欢时间在右下角，可以改成 flex-end */
-    opacity: 0.8; /* 稍微变淡一点，突出主次感 */
+    align-self: flex-start; 
+    opacity: 0.8; 
 }
-/* ================== 【修复结束】 ================== */
 
 /* 折叠栏与预览 */
 .bkm-details { width: 100%; text-align: left !important; }
@@ -250,15 +251,7 @@
     background: var(--SmartThemeButtonBackgroundColor);
     padding: 12px;
     border-radius: 8px;
-    text-align: left !important; /* 强制左对齐 */
+    text-align: left !important; 
     word-break: break-word;
 }
 
-/* --- 快捷消息星星按钮样式 --- */
-.bkm-mes-btn {
-    transition: transform 0.2s, color 0.2s;
-}
-.bkm-mes-btn:hover {
-    transform: scale(1.15);
-    color: var(--SmartThemeQuoteColor);
-}
