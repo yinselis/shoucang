@@ -9,8 +9,18 @@
             <label for="bkm-setting-show-fab">显示桌面悬浮球入口 (手机端随意拖拽不卡顿)</label>
         </div>
         <hr class="sysHR" />
+        
+        <!-- 新增：提取标签设置 -->
         <div class="settings_section">
-            <label for="bkm-setting-filter-tags">需要过滤的标签 (英文逗号分隔)：</label>
+            <label for="bkm-setting-extract-tags" style="color: #cba6f7; font-weight: bold;">🎯 需要提取的标签 (英文逗号分隔)：</label>
+            <div style="font-size: 0.85em; color: #a6adc8; margin-bottom: 5px;">
+                开启后，将<b>仅保存</b>这些标签内的内容（留空则关闭）。如果同时设置了过滤，会先提取、再过滤嵌套内容。
+            </div>
+            <input type="text" id="bkm-setting-extract-tags" class="text_pole" placeholder="例如: scene, rp">
+        </div>
+
+        <div class="settings_section" style="margin-top: 15px;">
+            <label for="bkm-setting-filter-tags">✂️ 需要过滤(删除)的标签 (英文逗号分隔)：</label>
             <input type="text" id="bkm-setting-filter-tags" class="text_pole" placeholder="例如: think, thought">
         </div>
         <div class="settings_section flex-container align-items-center" style="margin-top: 10px;">
@@ -24,19 +34,28 @@
         
         <div class="settings_section flex-container align-items-center" style="margin-top: 10px; flex-wrap: wrap;">
             <input type="checkbox" id="bkm-setting-filter-on-save">
-            <label for="bkm-setting-filter-on-save" style="font-weight: bold; color: #a6e3a1;">在点击收藏时，自动剔除以上标签内容（极大节省文件大小）</label>
+            <label for="bkm-setting-filter-on-save" style="font-weight: bold; color: #a6e3a1;">在点击收藏时，自动执行上面的提取/剔除清洗（极大节省文件大小）</label>
             <div style="width: 100%; font-size: 0.85em; color: #ffcc00; margin-top: 5px; line-height: 1.4;">
-                ⚠️ <b>重要提示：</b>如果你希望收藏时<b>保留思维链</b>（以便导回时不消失），请务必 <b>取消勾选</b> 此选项！
+                ⚠️ <b>重要提示：</b>如果你希望收藏时<b>保留完整原文本</b>（以便导回时不丢失格式），请务必 <b>取消勾选</b> 此选项！
             </div>
         </div>
         
-        <!-- 修改了这里的布局和按钮文字，防止手机端挤压 -->
         <div class="settings_section" style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
             <div id="bkm-btn-clean-existing" class="menu_button" style="margin: 0; width: 100%; box-sizing: border-box; padding: 10px; text-align: center; white-space: nowrap;">
-                🧹 瘦身大扫除 (清理现有收藏)
+                🧹 瘦身大扫除 (清洗现有收藏里的冗余标签)
             </div>
             <small style="opacity: 0.8; line-height: 1.4;">
-                （如果过去积累了大量带思考链的收藏导致 settings 文件变大，点此可一键清洗掉旧记录里的多余标签）
+                （如果过去积累了大量带思考链的收藏导致 settings 文件变大，点此可根据上面的规则一键清洗）
+            </small>
+        </div>
+
+        <!-- 新增：重置悬浮窗位置 -->
+        <div class="settings_section" style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+            <div id="bkm-btn-reset-fab" class="menu_button" style="margin: 0; width: 100%; box-sizing: border-box; padding: 10px; text-align: center; white-space: nowrap; border-color: #89b4fa; color: #89b4fa;">
+                🔄 重置悬浮球位置
+            </div>
+            <small style="opacity: 0.8; line-height: 1.4;">
+                （如果悬浮球找不到了或卡在屏幕外，点击此按钮可将其恢复到初始位置）
             </small>
         </div>
     </div>

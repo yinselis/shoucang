@@ -5,6 +5,7 @@ const MODULE_NAME = 'global_bookmarks_pro';
 const defaultSettings = {
     showFloatingButton: true,
     filterTags: 'think,summary',
+    extractTags: '', // 新增：提取标签
     removeBeforeClosing: true,
     filterOnSave: true, // 保存时自动清洗标签
     bookmarks:[],
@@ -20,6 +21,31 @@ function getRealCharName(msg) {
     if (msg.is_user) return context.name1 || 'User';
     if (msg.name && msg.name !== 'SillyTavern System') return msg.name;
     return context.name2 || 'AI';
+}
+
+// ================= 【新增：提取标签逻辑】 =================
+function applyTagExtraction(text) {
+    if (!text) return text;
+    const settings = extensionSettings[MODULE_NAME];
+    const tags = (settings.extractTags || "").split(',').map(t => t.trim()).filter(t => t);
+    
+    // 如果没有设置提取标签，返回 null 表示不进行提取处理
+    if (tags.length === 0) return null; 
+
+    let extractedContent =[];
+    tags.forEach(tag => {
+        try {
+            // 匹配 <tag>...</tag> 内的内容
+            const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                if (match[1]) extractedContent.push(match[1].trim());
+            }
+        } catch (e) { }
+    });
+
+    // 如果提取到了内容，拼起来返回；如果设定了提取但没找到，返回空字符串
+    return extractedContent.length > 0 ? extractedContent.join('\n\n') : "";
 }
 
 function applyTagFilter(text) {
@@ -53,17 +79,15 @@ function applyTagFilter(text) {
 function getRenderedHtml(text, forceOpen = false) {
     if (!text) return "";
     
-    let magicBlocks = [];
+    let magicBlocks =[];
     let tempText = text;
     const openAttr = forceOpen ? "open" : "";
     
-    // 处理注释：不再折叠，去掉特殊颜色，直接变成普通的转义文本（防止被浏览器当真注释隐藏）
     tempText = tempText.replace(/<!--([\s\S]*?)-->/g, function(match, p1) {
         magicBlocks.push(`&lt;!--${escapeHtml(p1)}--&gt;`);
         return `MAGICBLOCKPLACEHOLDER${magicBlocks.length - 1}ENDPLACEHOLDER`;
     });
 
-    // 保护特殊的思考标签（依然保持折叠）
     const tRegex = new RegExp('\\x3Cthink\\x3E([\\s\\S]*?)\\x3C/think\\x3E', 'gi');
     tempText = tempText.replace(tRegex, function(match, p1) {
         magicBlocks.push(`<details ${openAttr} style="border-left: 4px solid #cba6f7; background: rgba(203, 166, 247, 0.15); padding: 8px 12px; margin: 10px 0; border-radius: 0 8px 8px 0; font-size: 0.95em; color: var(--SmartThemeBodyColor); opacity: 0.9; text-align: left; display: block;">
@@ -72,7 +96,6 @@ function getRenderedHtml(text, forceOpen = false) {
         return `MAGICBLOCKPLACEHOLDER${magicBlocks.length - 1}ENDPLACEHOLDER`;
     });
 
-    // Markdown 渲染
     let html = "";
     if (typeof showdown !== 'undefined') {
         const converter = new showdown.Converter({ simpleLineBreaks: true });
@@ -81,7 +104,6 @@ function getRenderedHtml(text, forceOpen = false) {
         html = escapeHtml(tempText).replace(/\n/g, '<br>');
     }
 
-    // 替换回魔法块
     magicBlocks.forEach((block, index) => {
         let regexP = new RegExp(`<p>MAGICBLOCKPLACEHOLDER${index}ENDPLACEHOLDER<\\/p>`, 'g');
         let regexRaw = new RegExp(`MAGICBLOCKPLACEHOLDER${index}ENDPLACEHOLDER`, 'g');
@@ -176,7 +198,6 @@ async function restoreBookmarkToChat(bm) {
 
             if (typeof context.saveChat === 'function') await context.saveChat();
             
-            // 强力重绘当前聊天，确保页码和文本绝对同步刷新
             if (typeof context.reloadCurrentChat === 'function') {
                 await context.reloadCurrentChat();
             } else if (typeof context.updateMessageBlock === 'function') {
@@ -349,14 +370,26 @@ async function takeScreenshot(bm) {
 }
 // =========================================================
 
-// 【核心存储逻辑：独立提取，支持过滤和去重】
+// 【核心存储逻辑：提取与过滤】
 async function doSaveMessage(text, msg, mesId, currentChatId) {
-    // 保存时直接剔除设置中配置的标签（如 <think>）
-    if (extensionSettings[MODULE_NAME].filterOnSave) {
+    const settings = extensionSettings[MODULE_NAME];
+
+    // 1. 尝试提取特定标签 (如果配置了的话)
+    if (settings.extractTags && settings.extractTags.trim() !== "") {
+        const extracted = applyTagExtraction(text);
+        if (extracted === "") {
+            return toastr.warning(`⚠️ 未在消息中找到设定的提取标签 <${settings.extractTags}>，本次收藏已拦截。`);
+        } else if (extracted !== null) {
+            text = extracted; // 提取成功，替换文本
+        }
+    }
+
+    // 2. 在提取完的基础上，再进行标签过滤 (剔除不想要的)
+    if (settings.filterOnSave) {
         text = applyTagFilter(text);
     }
     
-    if (!text || text.trim() === "") return toastr.warning("消息为空或标签内容已被完全过滤，无实际内容可收藏。");
+    if (!text || text.trim() === "") return toastr.warning("消息为空或已被完全过滤/提取失败，无实际内容可收藏。");
 
     // 检查是否已经存在完全相同的记录（防手滑连续点击）
     const isDuplicate = extensionSettings[MODULE_NAME].bookmarks.some(b => 
@@ -411,7 +444,6 @@ async function showBookmarksUI(bms, titleStr) {
     groupedBookmarks.forEach((group, gIndex) => {
         const floorText = group.floor !== undefined ? `第 ${group.floor} 楼` : `未知楼层`;
         const total = group.items.length;
-        // 预览内容为了美观仍然过滤掉标签，只显示正文前部分
         const firstText = applyTagFilter(group.items[0].text || "*(内容丢失)*");
         let previewText = escapeHtml(firstText.replace(/\n/g, ' ').substring(0, 35));
         if (firstText.length > 35) previewText += '...';
@@ -575,7 +607,7 @@ async function openMainMenu() {
                     <button id="btn-bkm-13" class="bkm-menu-btn" style="color:#74c7ec;"><i class="fa-solid fa-file-export"></i> 导出与备份</button>
                     <button id="btn-bkm-15" class="bkm-menu-btn" style="color:#a6e3a1;"><i class="fa-solid fa-file-import"></i> 导入备份数据</button>
                     
-                    <button id="btn-bkm-19" class="bkm-menu-btn full-width"><i class="fa-solid fa-gear" style="color:#94e2d5;"></i> 标签过滤设置 (当前: ${extensionSettings[MODULE_NAME].filterTags})</button>
+                    <button id="btn-bkm-19" class="bkm-menu-btn full-width"><i class="fa-solid fa-gear" style="color:#94e2d5;"></i> 标签过滤/提取 设置</button>
                 </div>
             </div>
         `;
@@ -773,12 +805,7 @@ async function openMainMenu() {
             }
 
             case 19:
-                const newTags = await context.callGenericPopup(`请输入要过滤的标签（如: think, summary）：`, context.POPUP_TYPE.INPUT, extensionSettings[MODULE_NAME].filterTags, { cancelButton: "取消" });
-                if (newTags !== undefined) {
-                    extensionSettings[MODULE_NAME].filterTags = newTags;
-                    context.saveSettingsDebounced();
-                    toastr.success("✅ 标签保存成功！");
-                }
+                toastr.info("请在酒馆顶部的 '扩展设置' 面板中配置标签哦！");
                 break;
         }
     }
@@ -844,28 +871,39 @@ async function initUI() {
                 $('#bkm-setting-filter-tags').val(extensionSettings[MODULE_NAME].filterTags).on('input', (e) => {
                     extensionSettings[MODULE_NAME].filterTags = $(e.target).val(); context.saveSettingsDebounced();
                 });
+                
+                // 新增提取标签
+                $('#bkm-setting-extract-tags').val(extensionSettings[MODULE_NAME].extractTags || "").on('input', (e) => {
+                    extensionSettings[MODULE_NAME].extractTags = $(e.target).val(); context.saveSettingsDebounced();
+                });
+
                 $('#bkm-setting-remove-before').prop('checked', extensionSettings[MODULE_NAME].removeBeforeClosing).on('change', (e) => {
                     extensionSettings[MODULE_NAME].removeBeforeClosing = $(e.target).prop('checked'); context.saveSettingsDebounced();
                 });
 
-                // 新增：保存时过滤开关绑定
                 $('#bkm-setting-filter-on-save').prop('checked', extensionSettings[MODULE_NAME].filterOnSave).on('change', (e) => {
                     extensionSettings[MODULE_NAME].filterOnSave = $(e.target).prop('checked'); context.saveSettingsDebounced();
                 });
 
-                // 新增：瘦身按钮逻辑（清洗现有收藏）
                 $('#bkm-btn-clean-existing').on('click', async () => {
                     const bms = extensionSettings[MODULE_NAME].bookmarks;
                     if (!bms || bms.length === 0) return toastr.info("收藏夹为空，不需要清理。");
                     
-                    const confirmRes = await context.callGenericPopup("确定要清理所有现有收藏中的标签内容吗？<br><br><span style='color:#ff6666;'>清洗后，原记录里标签内的思维链、摘要文字将被永久删除，将大幅度释放存储空间。</span>", context.POPUP_TYPE.CONFIRM, "", { okButton: "确定清理瘦身", cancelButton: "取消" });
+                    const confirmRes = await context.callGenericPopup("确定要清理所有现有收藏中的标签内容吗？<br><br><span style='color:#ff6666;'>清洗后，原记录里多余的标签将被永久删除，大幅释放存储空间。</span>", context.POPUP_TYPE.CONFIRM, "", { okButton: "确定清理瘦身", cancelButton: "取消" });
                     
                     if (confirmRes === context.POPUP_RESULT.AFFIRMATIVE) {
                         let cleanedCount = 0;
                         bms.forEach(bm => {
-                            const oldText = bm.text;
-                            const newText = applyTagFilter(oldText);
-                            if (oldText !== newText) {
+                            let newText = bm.text;
+                            // 先走提取
+                            if (extensionSettings[MODULE_NAME].extractTags && extensionSettings[MODULE_NAME].extractTags.trim() !== '') {
+                                const ext = applyTagExtraction(newText);
+                                if (ext) newText = ext;
+                            }
+                            // 后走过滤
+                            newText = applyTagFilter(newText);
+                            
+                            if (bm.text !== newText) {
                                 bm.text = newText;
                                 cleanedCount++;
                             }
@@ -873,6 +911,14 @@ async function initUI() {
                         context.saveSettingsDebounced();
                         toastr.success(`🧹 瘦身大扫除完成！共洗净了 ${cleanedCount} 条记录的冗余标签！`);
                     }
+                });
+
+                // 新增重置悬浮球按钮
+                $('#bkm-btn-reset-fab').on('click', () => {
+                    extensionSettings[MODULE_NAME].fabPosition = { top: '30%', left: '85%' };
+                    context.saveSettingsDebounced();
+                    $('#bkm-fab-container').css({ top: '30%', left: '85%', bottom: 'auto', right: 'auto' });
+                    toastr.success("🔄 悬浮球位置已重置为默认！");
                 });
 
                 break;
@@ -903,23 +949,14 @@ $(document).on('click', '#global-bookmarks .mes_reasoning_header, #global-bookma
     });
 });
 
-// ==========================================
-// 终极灭光：拦截快捷回复按钮的点击，阻止酒馆闪烁绿光
-// ==========================================
 document.addEventListener('click', function(e) {
-    // 寻找被点击的快捷回复按钮
     const qrBtn = e.target.closest('.qr--button, .qr-button');
     if (qrBtn) {
         const btnText = qrBtn.textContent.trim();
-        // 只要你的按钮名字里包含 "收藏"，就直接拦截！
         if (btnText === '收藏' || btnText.includes('收藏')) {
             e.preventDefault();
-            e.stopPropagation(); // 强行阻断酒馆的原生事件，不让它触发斜杠命令
-            
-            // 悄悄在后台调用咱们的函数，并且因为是无痕调用，不会有绿光
-            if (typeof quickSaveLatest === 'function') {
-                quickSaveLatest();
-            }
+            e.stopPropagation(); 
+            if (typeof quickSaveLatest === 'function') quickSaveLatest();
         }
     }
-}, true); // <-- 这里的 true 是灵魂，代表在“捕获阶段”最高优先级拦截
+}, true); 
