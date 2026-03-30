@@ -4,10 +4,10 @@ const { eventSource, event_types, extensionSettings, SlashCommandParser, SlashCo
 const MODULE_NAME = 'global_bookmarks_pro';
 const defaultSettings = {
     showFloatingButton: true,
-    filterTags: 'think,summary',
-    extractTags: '', // 新增：提取标签
+    filterTags: '',
+    extractTags: '', 
     removeBeforeClosing: true,
-    filterOnSave: true, // 保存时自动清洗标签
+    filterOnSave: true, 
     bookmarks:[],
     fabPosition: { top: '30%', left: '85%' }
 };
@@ -23,19 +23,16 @@ function getRealCharName(msg) {
     return context.name2 || 'AI';
 }
 
-// ================= 【新增：提取标签逻辑】 =================
 function applyTagExtraction(text) {
     if (!text) return text;
     const settings = extensionSettings[MODULE_NAME];
     const tags = (settings.extractTags || "").split(',').map(t => t.trim()).filter(t => t);
     
-    // 如果没有设置提取标签，返回 null 表示不进行提取处理
     if (tags.length === 0) return null; 
 
     let extractedContent =[];
     tags.forEach(tag => {
         try {
-            // 匹配 <tag>...</tag> 内的内容
             const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
             let match;
             while ((match = regex.exec(text)) !== null) {
@@ -44,34 +41,65 @@ function applyTagExtraction(text) {
         } catch (e) { }
     });
 
-    // 如果提取到了内容，拼起来返回；如果设定了提取但没找到，返回空字符串
     return extractedContent.length > 0 ? extractedContent.join('\n\n') : "";
 }
 
+// 核心净化引擎（已修复 Typo 且增强了容错性）
 function applyTagFilter(text) {
     if (!text) return text;
     let result = text;
     const settings = extensionSettings[MODULE_NAME];
-    const tags = (settings.filterTags || "think").split(',').map(t => t.trim()).filter(t => t);
+    const tags = (settings.filterTags || "").split(',').map(t => t.trim()).filter(t => t);
     
+    const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // 允许注释内部两端有任意空格的辅助函数，解决 <!--foo--> 和 <!-- foo --> 不匹配的问题
+    const buildCommentSafeRegexStr = (str) => {
+        if (str.startsWith('<!--') && str.endsWith('-->')) {
+            const inner = str.slice(4, -3).trim(); 
+            return `<\\!\\-\\-\\s*${escapeRegExp(inner)}\\s*\\-\\->`;
+        }
+        return escapeRegExp(str);
+    };
+
     tags.forEach(tag => {
         try {
-            const regex = new RegExp(`<${tag}[^>]*>[\\s\\S]*?<\\/${tag}>`, 'gi');
-            result = result.replace(regex, '');
-        } catch (e) { }
-
-        if (settings.removeBeforeClosing) {
-            const closingTag = `</${tag}>`;
-            const closingIndex = result.toLowerCase().indexOf(closingTag.toLowerCase());
-            if (closingIndex !== -1) {
-                result = result.substring(closingIndex + closingTag.length);
+            if (tag.includes('...')) {
+                // 修复了 typo: 以前误写成了 split('......')
+                const parts = tag.split('...');
+                if (parts.length === 2) {
+                    const startStr = parts[0].trim();
+                    const endStr = parts[1].trim();
+                    
+                    const startRegexStr = buildCommentSafeRegexStr(startStr);
+                    const endRegexStr = buildCommentSafeRegexStr(endStr);
+                    
+                    // 增强逻辑：使用 (?:...|$) 来处理 AI 没说完（缺少结束标签）的情况，直接抹除到底
+                    const regex = new RegExp(`${startRegexStr}[\\s\\S]*?(?:${endRegexStr}\\n?|$)`, 'gi');
+                    result = result.replace(regex, '');
+                }
+            } else if (tag.startsWith('<!--') && tag.endsWith('-->')) {
+                const regexStr = buildCommentSafeRegexStr(tag);
+                const regex = new RegExp(`${regexStr}\\n?`, 'gi');
+                result = result.replace(regex, '');
             } else {
-                const openIndex = result.toLowerCase().indexOf(`<${tag}`.toLowerCase());
-                if (openIndex !== -1) {
-                    result = result.substring(0, openIndex);
+                const regex = new RegExp(`<${tag}[^>]*>[\\s\\S]*?<\\/${tag}>`, 'gi');
+                result = result.replace(regex, '');
+
+                if (settings.removeBeforeClosing) {
+                    const closingTag = `</${tag}>`;
+                    const closingIndex = result.toLowerCase().indexOf(closingTag.toLowerCase());
+                    if (closingIndex !== -1) {
+                        result = result.substring(closingIndex + closingTag.length);
+                    } else {
+                        const openIndex = result.toLowerCase().indexOf(`<${tag}`.toLowerCase());
+                        if (openIndex !== -1) {
+                            result = result.substring(0, openIndex);
+                        }
+                    }
                 }
             }
-        }
+        } catch (e) { console.error("Filter Error:", e) }
     });
     return result.trim();
 }
@@ -122,7 +150,6 @@ function loadSettings() {
     }
 }
 
-// ================= 【导回系统 (含插队功能)】 =================
 async function restoreBookmarkToChat(bm) {
     try {
         const lastMessageId = context.chat.length - 1;
@@ -259,7 +286,6 @@ async function restoreBookmarkToChat(bm) {
     }
 }
 
-// ================= 【图片生成系统】 =================
 async function takeScreenshot(bm) {
     if (typeof window.html2canvas === 'undefined') {
         try { 
@@ -297,7 +323,7 @@ async function takeScreenshot(bm) {
     toastr.info("📸 正在施展换装魔法...");
 
     const safeText = bm.text || "*(内容丢失)*";
-    const formattedText = getRenderedHtml(safeText); // 魔法渲染替换
+    const formattedText = getRenderedHtml(safeText); 
     const initialChar = bm.char ? bm.char.charAt(0).toUpperCase() : 'A';
     
     let cssWrapper = ''; let cssCard = ''; let cssAvatar = ''; let cssName = ''; let cssTime = ''; let cssText = ''; let cssDivider = '';
@@ -341,7 +367,7 @@ async function takeScreenshot(bm) {
             <div style="text-align:center; max-height: 80vh; display: flex; flex-direction: column; align-items: center;">
                 <div style="margin-bottom: 15px;">
                     <p style="color: var(--SmartThemeQuoteColor); font-weight: bold; margin: 0 0 10px 0;">✨ 魔法换装完成！</p>
-                    <button id="bkm-real-download-btn" class="bkm-btn highlight" style="font-size: 1.1em; padding: 10px 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border-radius: 20px;">
+                    <button id="bkm-real-download-btn" class="bkm-btn highlight" style="font-size: 1.1em; padding: 10px 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border-radius: 20px; flex-shrink: 0;">
                         <i class="fa-solid fa-download"></i> 点击保存到手机 / 电脑
                     </button>
                 </div>
@@ -368,30 +394,25 @@ async function takeScreenshot(bm) {
         document.body.removeChild(container);
     }
 }
-// =========================================================
 
-// 【核心存储逻辑：提取与过滤】
 async function doSaveMessage(text, msg, mesId, currentChatId) {
     const settings = extensionSettings[MODULE_NAME];
 
-    // 1. 尝试提取特定标签 (如果配置了的话)
     if (settings.extractTags && settings.extractTags.trim() !== "") {
         const extracted = applyTagExtraction(text);
         if (extracted === "") {
             return toastr.warning(`⚠️ 未在消息中找到设定的提取标签 <${settings.extractTags}>，本次收藏已拦截。`);
         } else if (extracted !== null) {
-            text = extracted; // 提取成功，替换文本
+            text = extracted;
         }
     }
 
-    // 2. 在提取完的基础上，再进行标签过滤 (剔除不想要的)
     if (settings.filterOnSave) {
         text = applyTagFilter(text);
     }
     
     if (!text || text.trim() === "") return toastr.warning("消息为空或已被完全过滤/提取失败，无实际内容可收藏。");
 
-    // 检查是否已经存在完全相同的记录（防手滑连续点击）
     const isDuplicate = extensionSettings[MODULE_NAME].bookmarks.some(b => 
         b.text === text && b.chatId === currentChatId && b.floor === mesId
     );
@@ -480,7 +501,7 @@ async function showBookmarksUI(bms, titleStr) {
         
         group.items.forEach((item, iIndex) => {
             const safeItemText = item.text || "*(内容丢失)*";
-            const formattedText = getRenderedHtml(safeItemText); // 魔法渲染替换
+            const formattedText = getRenderedHtml(safeItemText);
             
             htmlContent += `
                         <div id="bkm-content-${gIndex}-${iIndex}" style="display: ${iIndex === 0 ? 'block' : 'none'};">
@@ -534,9 +555,9 @@ async function showMultiSelectUI(items, config) {
     htmlContent += `<div class="bkm-grid"><button id="btn-sel-all" class="bkm-btn">✅ 全选</button><button id="btn-sel-none" class="bkm-btn">❌ 全不选</button></div><div class="bkm-flex-col">`;
     
     items.forEach((item, index) => {
-        const formattedFullText = getRenderedHtml(item.fullText); // 魔法渲染
+        const formattedFullText = getRenderedHtml(item.fullText || item.label);
         htmlContent += `
-        <div class="bkm-group-card" style="padding:12px; width: 100%; box-sizing: border-box; display: block;">
+        <div class="bkm-group-card" style="padding:12px; width: 100%; box-sizing: border-box; display: block; flex-shrink: 0;">
             <div style="display:flex; align-items:flex-start; gap: 10px; width: 100%;">
                 <input type="checkbox" id="cb-${index}" class="bkm-sel-cb" data-value="${item.value}" style="width:20px; height:20px; margin-top:2px; flex-shrink:0;">
                 <label for="cb-${index}" style="font-size: 0.95em; flex: 1; min-width: 0; line-height:1.4; word-break: break-all; margin:0; text-align: left;">${item.label}</label>
@@ -588,7 +609,6 @@ function generateTxtContent(bms) {
     return txt;
 }
 
-// ================= 主菜单 =================
 async function openMainMenu() {
     let keepRunning = true;
     while (keepRunning) {
@@ -811,7 +831,6 @@ async function openMainMenu() {
     }
 }
 
-// 悬浮球
 function makeDraggable(fab) {
     let isDragging = false;
     let startX, startY, initialTop, initialLeft;
@@ -872,7 +891,6 @@ async function initUI() {
                     extensionSettings[MODULE_NAME].filterTags = $(e.target).val(); context.saveSettingsDebounced();
                 });
                 
-                // 新增提取标签
                 $('#bkm-setting-extract-tags').val(extensionSettings[MODULE_NAME].extractTags || "").on('input', (e) => {
                     extensionSettings[MODULE_NAME].extractTags = $(e.target).val(); context.saveSettingsDebounced();
                 });
@@ -895,12 +913,10 @@ async function initUI() {
                         let cleanedCount = 0;
                         bms.forEach(bm => {
                             let newText = bm.text;
-                            // 先走提取
                             if (extensionSettings[MODULE_NAME].extractTags && extensionSettings[MODULE_NAME].extractTags.trim() !== '') {
                                 const ext = applyTagExtraction(newText);
                                 if (ext) newText = ext;
                             }
-                            // 后走过滤
                             newText = applyTagFilter(newText);
                             
                             if (bm.text !== newText) {
@@ -913,7 +929,159 @@ async function initUI() {
                     }
                 });
 
-                // 新增重置悬浮球按钮
+                $('#bkm-btn-visual-filter').on('click', async () => {
+                    const bms = extensionSettings[MODULE_NAME].bookmarks;
+                    if (!bms || bms.length === 0) return toastr.warning("收藏夹是空的，请先收藏几条消息以便进行分析！");
+                    
+                    let foundTags = new Set();
+                    let foundComments =[];
+                    
+                    bms.forEach(bm => {
+                        const text = bm.text || "";
+                        const tagRegex = /<([a-zA-Z0-9\-]+)[^>]*>[\s\S]*?<\/\1>/gi;
+                        let match;
+                        while ((match = tagRegex.exec(text)) !== null) foundTags.add(match[1].toLowerCase());
+                        
+                        // 提取时不再强行清除空格，保留原汁原味
+                        const commentRegex = /<!--([\s\S]*?)-->/g;
+                        while ((match = commentRegex.exec(text)) !== null) foundComments.push(`<!--${match[1]}-->`);
+                    });
+
+                    foundComments =[...new Set(foundComments)];
+
+                    let pairedComments = [];
+                    let standaloneComments =[];
+                    let usedComments = new Set();
+                    const endWords = ['END', 'STOP', '封存', '关闭', '结束'];
+
+                    foundComments.forEach(c1 => {
+                        if (usedComments.has(c1)) return;
+                        let isBegin = false, startKeyword = '', base = '';
+                        if (c1.toUpperCase().includes('BEGIN')) { isBegin = true; startKeyword = 'BEGIN'; }
+                        else if (c1.toUpperCase().includes('START')) { isBegin = true; startKeyword = 'START'; }
+                        else if (c1.includes('开启')) { isBegin = true; startKeyword = '开启'; }
+                        
+                        if(isBegin){
+                            base = c1.replace(new RegExp(startKeyword, 'i'), '###PLACEHOLDER###');
+                            for (const endWord of endWords) {
+                                const possibleEnd = base.replace('###PLACEHOLDER###', endWord);
+                                const foundEnd = foundComments.find(c2 => c2.toUpperCase() === possibleEnd.toUpperCase());
+                                if (foundEnd) {
+                                    pairedComments.push({ start: c1, end: foundEnd });
+                                    usedComments.add(c1); usedComments.add(foundEnd);
+                                    return;
+                                }
+                            }
+                        }
+                    });
+                    
+                    foundComments.forEach(c => { if (!usedComments.has(c)) standaloneComments.push(c); });
+
+                    if (foundTags.size === 0 && pairedComments.length === 0 && standaloneComments.length === 0) {
+                        return toastr.info("🎉 您的收藏非常干净，没有发现任何奇怪的标签或注释！");
+                    }
+
+                    let htmlContent = `<div class="bkm-list-container">
+                        <h3 class="bkm-title" style="color:#f38ba8;">🔍 智能过滤分析结果</h3>
+                        <p style="font-size:0.9em; margin-bottom:15px; color:var(--SmartThemeBodyColor);">已自动为您提取出以下特殊内容，请勾选您希望<b>以后自动过滤并彻底清除</b>的项目：</p>
+                        
+                        <div class="bkm-grid" style="margin-bottom:15px; display:flex; gap:10px;">
+                            <button id="v-sel-all" class="bkm-btn" style="flex:1;">✅ 全选</button>
+                            <button id="v-sel-none" class="bkm-btn" style="flex:1;">❌ 全不选</button>
+                        </div>
+                        
+                        <div class="bkm-flex-col" style="max-height: 50vh; overflow-y: auto; overflow-x: hidden; padding-right: 5px;">`;
+                    
+                    let itemIndex = 0;
+                    
+                    pairedComments.forEach(pair => {
+                        const val = `${pair.start}...${pair.end}`;
+                        htmlContent += `<div class="bkm-group-card" style="padding:10px; display:flex; align-items:flex-start; gap:10px; border-left: 3px solid #cba6f7; flex-shrink: 0;">
+                            <input type="checkbox" id="v-tag-${itemIndex}" class="v-filter-cb" data-val="${escapeHtml(val)}" style="width:18px;height:18px;flex-shrink:0;margin-top:2px;">
+                            <div style="flex:1; min-width:0;">
+                                <label for="v-tag-${itemIndex}" style="font-size:0.9em; cursor:pointer; margin:0; line-height:1.5; display:block;">
+                                    <b style="color:#cba6f7;">[块状清理]</b> 删除从 <code style="display:block; margin-top:4px; word-break:break-all; white-space:pre-wrap; background:var(--SmartThemeBlurTintColor); padding:4px 8px; border-radius:4px; border:1px solid var(--SmartThemeBorderColor);">${escapeHtml(pair.start)}</code> 到 <code style="display:block; margin-top:4px; word-break:break-all; white-space:pre-wrap; background:var(--SmartThemeBlurTintColor); padding:4px 8px; border-radius:4px; border:1px solid var(--SmartThemeBorderColor);">${escapeHtml(pair.end)}</code> 之间的全部内容！
+                                </label>
+                            </div>
+                        </div>`; itemIndex++;
+                    });
+
+                    Array.from(foundTags).forEach(tag => {
+                        htmlContent += `<div class="bkm-group-card" style="padding:10px; display:flex; align-items:flex-start; gap:10px; flex-shrink: 0;">
+                            <input type="checkbox" id="v-tag-${itemIndex}" class="v-filter-cb" data-val="${tag}" style="width:18px;height:18px;flex-shrink:0; margin-top: 2px;">
+                            <div style="flex:1; min-width:0;">
+                                <label for="v-tag-${itemIndex}" style="font-size:0.9em; cursor:pointer; margin:0; line-height:1.5; display:block;">
+                                    <b style="color:#a6e3a1;">[常规标签]</b> 过滤 <code style="display:block; margin-top:4px; word-break:break-all; white-space:pre-wrap; background:var(--SmartThemeBlurTintColor); padding:4px 8px; border-radius:4px; border:1px solid var(--SmartThemeBorderColor);">&lt;${escapeHtml(tag)}&gt;</code> 及其包含的内部文本
+                                </label>
+                            </div>
+                        </div>`; itemIndex++;
+                    });
+
+                    standaloneComments.forEach(comment => {
+                        let preview = comment.length > 50 ? escapeHtml(comment.substring(0, 50)) + '...' : escapeHtml(comment);
+                        htmlContent += `<div class="bkm-group-card" style="padding:10px; display:flex; align-items:flex-start; gap:10px; flex-shrink: 0;">
+                            <input type="checkbox" id="v-tag-${itemIndex}" class="v-filter-cb" data-val="${escapeHtml(comment)}" style="width:18px;height:18px;flex-shrink:0; margin-top:2px;">
+                            <div style="flex:1; min-width:0;">
+                                <label for="v-tag-${itemIndex}" style="font-size:0.9em; cursor:pointer; margin:0; line-height:1.5; display:block;">
+                                    <b style="color:#89b4fa;">[独立注释]</b> 仅删除这条碍眼的注释：
+                                    <code style="display:block; width:100%; box-sizing:border-box; white-space:pre-wrap; word-break:break-all; margin-top:6px; padding:8px; background:var(--SmartThemeBlurTintColor); border:1px solid var(--SmartThemeBorderColor); border-radius:6px; color:var(--SmartThemeBodyColor);">${preview}</code>
+                                </label>
+                                ${comment.length > 50 ? `<details style="margin-top: 8px; font-size: 0.85em; opacity: 0.9;"><summary style="cursor:pointer; color:var(--SmartThemeQuoteColor);">展开完整内容</summary><div style="margin-top:5px; white-space: pre-wrap; word-break: break-all; background: var(--SmartThemeBlurTintColor); padding: 8px; border-radius: 6px; border: 1px solid var(--SmartThemeBorderColor);"><code style="white-space: pre-wrap; word-break: break-all;">${escapeHtml(comment)}</code></div></details>` : ''}
+                            </div>
+                        </div>`; itemIndex++;
+                    });
+
+                    htmlContent += `</div></div>`;
+
+                    let selectedValsSet = new Set();
+
+                    const choice = await context.callGenericPopup(htmlContent, context.POPUP_TYPE.TEXT, "", { 
+                        okButton: "添加至过滤规则", 
+                        cancelButton: "取消", 
+                        large: true, 
+                        wide: true,
+                        allowVerticalScrolling: true,
+                        onOpen: () => {
+                            $('.v-filter-cb').on('change', function() {
+                                const val = $(this).data('val');
+                                if ($(this).is(':checked')) selectedValsSet.add(val);
+                                else selectedValsSet.delete(val);
+                            });
+
+                            $('#v-sel-all').on('click', () => {
+                                $('.v-filter-cb').prop('checked', true).each(function() { selectedValsSet.add($(this).data('val')); });
+                            });
+
+                            $('#v-sel-none').on('click', () => {
+                                $('.v-filter-cb').prop('checked', false); selectedValsSet.clear();
+                            });
+                        }
+                    });
+
+                    if (choice === context.POPUP_RESULT.AFFIRMATIVE) {
+                        let selectedVals = Array.from(selectedValsSet);
+
+                        if (selectedVals.length > 0) {
+                            const currentTags = ($('#bkm-setting-filter-tags').val() || "").split(',').map(t => t.trim()).filter(t => t);
+                            const tagSet = new Set(currentTags);
+                            selectedVals.forEach(val => tagSet.add(val));
+                            
+                            const newFilterString = Array.from(tagSet).join(', ');
+                            $('#bkm-setting-filter-tags').val(newFilterString);
+                            extensionSettings[MODULE_NAME].filterTags = newFilterString;
+                            context.saveSettingsDebounced();
+                            toastr.success(`✅ 已成功添加 ${selectedVals.length} 条新规则！`);
+
+                            const runClean = await context.callGenericPopup("要立即使用新规则对现有所有收藏进行一次“瘦身大扫除”吗？", context.POPUP_TYPE.CONFIRM);
+                            if (runClean === context.POPUP_RESULT.AFFIRMATIVE) {
+                                $('#bkm-btn-clean-existing').trigger('click');
+                            }
+                        } else {
+                            toastr.info("您没有选择任何新的过滤规则。");
+                        }
+                    }
+                });
+
                 $('#bkm-btn-reset-fab').on('click', () => {
                     extensionSettings[MODULE_NAME].fabPosition = { top: '30%', left: '85%' };
                     context.saveSettingsDebounced();
@@ -959,4 +1127,4 @@ document.addEventListener('click', function(e) {
             if (typeof quickSaveLatest === 'function') quickSaveLatest();
         }
     }
-}, true); 
+}, true);

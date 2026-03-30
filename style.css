@@ -63,6 +63,7 @@
     display: flex;
     align-items: center;
     box-sizing: border-box;
+    flex-shrink: 0; /* 防止在定高 flex 容器中被压缩 */
 }
 
 .bkm-menu-btn { flex-direction: column; gap: 8px; }
@@ -92,6 +93,7 @@
     text-align: left !important;
     width: 100%;
     box-sizing: border-box;
+    flex-shrink: 0; /* 核心修复：防止卡片在定高 flex 容器中被压缩而显示不全 */
 }
 
 .bkm-group-header {
@@ -254,4 +256,3 @@
     text-align: left !important; 
     word-break: break-word;
 }
-
