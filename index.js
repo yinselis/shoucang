@@ -44,7 +44,6 @@ function applyTagExtraction(text) {
     return extractedContent.length > 0 ? extractedContent.join('\n\n') : "";
 }
 
-// 核心净化引擎（已修复 Typo 且增强了容错性）
 function applyTagFilter(text) {
     if (!text) return text;
     let result = text;
@@ -53,7 +52,6 @@ function applyTagFilter(text) {
     
     const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     
-    // 允许注释内部两端有任意空格的辅助函数，解决 <!--foo--> 和 <!-- foo --> 不匹配的问题
     const buildCommentSafeRegexStr = (str) => {
         if (str.startsWith('<!--') && str.endsWith('-->')) {
             const inner = str.slice(4, -3).trim(); 
@@ -65,7 +63,6 @@ function applyTagFilter(text) {
     tags.forEach(tag => {
         try {
             if (tag.includes('...')) {
-                // 修复了 typo: 以前误写成了 split('......')
                 const parts = tag.split('...');
                 if (parts.length === 2) {
                     const startStr = parts[0].trim();
@@ -74,7 +71,6 @@ function applyTagFilter(text) {
                     const startRegexStr = buildCommentSafeRegexStr(startStr);
                     const endRegexStr = buildCommentSafeRegexStr(endStr);
                     
-                    // 增强逻辑：使用 (?:...|$) 来处理 AI 没说完（缺少结束标签）的情况，直接抹除到底
                     const regex = new RegExp(`${startRegexStr}[\\s\\S]*?(?:${endRegexStr}\\n?|$)`, 'gi');
                     result = result.replace(regex, '');
                 }
@@ -166,7 +162,7 @@ async function restoreBookmarkToChat(bm) {
 
         const choice = await context.callGenericPopup(optionsHtml, context.POPUP_TYPE.TEXT, "", {
             okButton: false, cancelButton: "取消", allowVerticalScrolling: true,
-            onOpen: async (popup) => {
+            onOpen: (popup) => {
                 $('#res-orig').on('click', () => popup.complete(1));
                 $('#res-orig-hidden').on('click', () => popup.complete(5));
                 $('#res-new').on('click', () => popup.complete(2));
@@ -661,13 +657,60 @@ async function openMainMenu() {
                 break;
                 
             case 16:
-                const range = await context.callGenericPopup("请输入要查阅的楼层号：", context.POPUP_TYPE.INPUT, "", { cancelButton: "取消" });
-                if (!range || !context.chat[parseInt(range)]) { toastr.error("❌ 无效楼层！"); break; }
-                const targetMsg = context.chat[parseInt(range)];
-                const targetSwipes = targetMsg.swipes || [targetMsg.mes];
-                const rChar = getRealCharName(targetMsg);
-                const swipeItems = targetSwipes.map((t, i) => ({ text: t, char: rChar, time: new Date().toLocaleString(), role: targetMsg.is_user ? 'User' : 'AI', floor: parseInt(range), chatId: context.getCurrentChatId() }));
-                await showBookmarksUI(swipeItems, `第 ${range} 楼的历史生成`);
+                const rangeInput = await context.callGenericPopup("请输入要查阅的楼层号 (如 5 或 1-30)：", context.POPUP_TYPE.INPUT, "", { cancelButton: "取消" });
+                if (!rangeInput) break;
+                
+                let startFloor, endFloor;
+                if (rangeInput.includes('-')) {
+                    const parts = rangeInput.split('-');
+                    startFloor = parseInt(parts[0].trim());
+                    endFloor = parseInt(parts[1].trim());
+                } else {
+                    startFloor = parseInt(rangeInput.trim());
+                    endFloor = startFloor;
+                }
+
+                if (isNaN(startFloor) || isNaN(endFloor) || startFloor < 0 || startFloor > endFloor) {
+                    toastr.error("❌ 无效的楼层范围！");
+                    break;
+                }
+
+                // 防止超出上限
+                endFloor = Math.min(endFloor, context.chat.length - 1);
+
+                let allSwipeItems = [];
+                for (let f = startFloor; f <= endFloor; f++) {
+                    const targetMsg = context.chat[f];
+                    if (!targetMsg) continue;
+                    
+                    const swipes = (targetMsg.swipes && targetMsg.swipes.length > 0) ? targetMsg.swipes : [targetMsg.mes];
+                    const rChar = getRealCharName(targetMsg);
+                    const role = targetMsg.is_user ? 'User' : 'AI';
+                    
+                    swipes.forEach((swText, index) => {
+                        let swipeTime = targetMsg.send_date ? new Date(targetMsg.send_date).toLocaleString() : new Date().toLocaleString();
+                        if (targetMsg.swipe_info && targetMsg.swipe_info[index] && targetMsg.swipe_info[index].send_date) {
+                            swipeTime = new Date(targetMsg.swipe_info[index].send_date).toLocaleString();
+                        }
+                        
+                        allSwipeItems.push({
+                            text: swText,
+                            char: rChar,
+                            time: swipeTime,
+                            role: role,
+                            floor: f,
+                            chatId: context.getCurrentChatId()
+                        });
+                    });
+                }
+
+                if (allSwipeItems.length === 0) {
+                    toastr.error("❌ 未找到任何生成记录！");
+                    break;
+                }
+                
+                const titleStr = startFloor === endFloor ? `第 ${startFloor} 楼` : `第 ${startFloor}-${endFloor} 楼`;
+                await showBookmarksUI(allSwipeItems, `${titleStr} 的历史生成`);
                 break;
                 
             case 17:
@@ -942,7 +985,6 @@ async function initUI() {
                         let match;
                         while ((match = tagRegex.exec(text)) !== null) foundTags.add(match[1].toLowerCase());
                         
-                        // 提取时不再强行清除空格，保留原汁原味
                         const commentRegex = /<!--([\s\S]*?)-->/g;
                         while ((match = commentRegex.exec(text)) !== null) foundComments.push(`<!--${match[1]}-->`);
                     });
