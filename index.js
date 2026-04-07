@@ -19,8 +19,11 @@ function escapeHtml(text) {
 }
 
 function getRealCharName(msg) {
-    if (msg.is_user) return context.name1 || 'User';
+    // 优先返回消息里保存的名字（酒馆切换Persona发消息时会记录当时的 msg.name）
     if (msg.name && msg.name !== 'SillyTavern System') return msg.name;
+    
+    // 如果没有自带名字，再兜底使用当前的上下文名字
+    if (msg.is_user) return context.name1 || 'User';
     return context.name2 || 'AI';
 }
 
