@@ -4,6 +4,7 @@ const { eventSource, event_types, extensionSettings, SlashCommandParser, SlashCo
 const MODULE_NAME = 'global_bookmarks_pro';
 const defaultSettings = {
     showFloatingButton: true,
+    fabIcon: '', // 新增：保存自定义图标/图片链接
     filterTags: '',
     extractTags: '', 
     removeBeforeClosing: true,
@@ -143,6 +144,40 @@ function loadSettings() {
         if (extensionSettings[MODULE_NAME][key] === undefined) {
             extensionSettings[MODULE_NAME][key] = defaultSettings[key];
         }
+    }
+}
+
+// 【新增】：根据设置更新悬浮球外观的函数
+function updateFABIcon() {
+    const fab = $('#bkm-fab-container');
+    if (fab.length === 0) return;
+    
+    const iconVal = (extensionSettings[MODULE_NAME].fabIcon || '').trim();
+    
+    // 清除上一次可能残留的背景图片样式
+    fab.css({
+        'background-image': 'none',
+        'background-size': 'auto',
+        'background-position': 'auto',
+        'background-repeat': 'auto',
+        'overflow': 'hidden' // 确保图片贴合圆角
+    });
+
+    if (!iconVal) {
+        // 如果留空，恢复默认的星星图标
+        fab.html('<i class="fa-solid fa-star"></i>');
+    } else if (iconVal.startsWith('http') || iconVal.startsWith('data:image')) {
+        // 如果是图片链接，设为背景图片，并清空里面的文字
+        fab.html('');
+        fab.css({
+            'background-image': `url("${iconVal}")`,
+            'background-size': 'cover',
+            'background-position': 'center',
+            'background-repeat': 'no-repeat'
+        });
+    } else {
+        // 如果是 Emoji 或其他文字
+        fab.html(escapeHtml(iconVal));
     }
 }
 
@@ -675,7 +710,6 @@ async function openMainMenu() {
                     break;
                 }
 
-                // 防止超出上限
                 endFloor = Math.min(endFloor, context.chat.length - 1);
 
                 let allSwipeItems = [];
@@ -927,9 +961,18 @@ async function initUI() {
             const settingsHtml = await $.get(path);
             if (settingsHtml) {
                 $('#extensions_settings').append(settingsHtml);
+                
                 $('#bkm-setting-show-fab').prop('checked', extensionSettings[MODULE_NAME].showFloatingButton).on('change', (e) => {
                     extensionSettings[MODULE_NAME].showFloatingButton = $(e.target).prop('checked'); context.saveSettingsDebounced(); toggleFAB();
                 });
+
+                // 【新增】：监听并实时渲染悬浮球图标
+                $('#bkm-setting-fab-icon').val(extensionSettings[MODULE_NAME].fabIcon || "").on('input', (e) => {
+                    extensionSettings[MODULE_NAME].fabIcon = $(e.target).val(); 
+                    context.saveSettingsDebounced();
+                    updateFABIcon(); // 触发即时更新
+                });
+
                 $('#bkm-setting-filter-tags').val(extensionSettings[MODULE_NAME].filterTags).on('input', (e) => {
                     extensionSettings[MODULE_NAME].filterTags = $(e.target).val(); context.saveSettingsDebounced();
                 });
@@ -1141,6 +1184,9 @@ async function initUI() {
         const fab = $('#bkm-fab-container');
         fab.css({ top: extensionSettings[MODULE_NAME].fabPosition.top, left: extensionSettings[MODULE_NAME].fabPosition.left });
         makeDraggable(fab);
+        
+        // 【新增】：初始化完毕后，渲染一次图标
+        updateFABIcon();
     }
     toggleFAB();
 

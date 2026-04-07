@@ -10,9 +10,18 @@
             <label for="bkm-setting-show-fab">显示桌面悬浮球入口 (手机端随意拖拽不卡顿)</label>
         </div>
 
+        <!-- 【新增】：自定义悬浮球图标 -->
+        <div class="settings_section" style="margin-bottom: 10px;">
+            <label for="bkm-setting-fab-icon" style="color: #89b4fa; font-weight: bold;">🎨 自定义悬浮球 (Emoji 或 图片链接)：</label>
+            <div style="font-size: 0.85em; color: #a6adc8; margin-bottom: 5px;">
+                留空恢复默认星星。可填入 🦊、🔮 等 Emoji，或者填入 <code>https://...</code> 开头的图片链接 (自动切成圆形)。
+            </div>
+            <input type="text" id="bkm-setting-fab-icon" class="text_pole" placeholder="例如: 🌸 或 https://xxx.com/img.png">
+        </div>
+
         <hr class="sysHR" />
 
-        <!-- 【新增】：重要警告横幅 -->
+        <!-- 重要警告横幅 -->
         <div class="settings_section" style="margin-top: 10px; margin-bottom: 15px;">
             <div style="background: rgba(243, 139, 168, 0.1); border-left: 4px solid #f38ba8; padding: 12px 15px; border-radius: 6px; color: #f38ba8; display: flex; flex-direction: column; gap: 8px;">
                 <div style="font-weight: bold; font-size: 1.1em; display: flex; align-items: center; gap: 8px;">
@@ -25,7 +34,7 @@
             </div>
         </div>
 
-        <!-- 【新增】：使用说明书 -->
+        <!-- 使用说明书 -->
         <div class="settings_section" style="margin-bottom: 15px;">
             <details style="background: rgba(137, 180, 250, 0.08); border: 1px solid rgba(137, 180, 250, 0.4); padding: 10px 15px; border-radius: 8px;">
                 <summary style="color: #89b4fa; font-weight: bold; cursor: pointer; outline: none; user-select: none; font-size: 1.05em; display: flex; align-items: center; gap: 5px;">
