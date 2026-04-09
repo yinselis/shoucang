@@ -10,7 +10,6 @@
             <label for="bkm-setting-show-fab">显示桌面悬浮球入口 (手机端随意拖拽不卡顿)</label>
         </div>
 
-        <!-- 【新增】：自定义悬浮球图标 -->
         <div class="settings_section" style="margin-bottom: 10px;">
             <label for="bkm-setting-fab-icon" style="color: #89b4fa; font-weight: bold;">🎨 自定义悬浮球 (Emoji 或 图片链接)：</label>
             <div style="font-size: 0.85em; color: #a6adc8; margin-bottom: 5px;">
@@ -21,7 +20,6 @@
 
         <hr class="sysHR" />
 
-        <!-- 重要警告横幅 -->
         <div class="settings_section" style="margin-top: 10px; margin-bottom: 15px;">
             <div style="background: rgba(243, 139, 168, 0.1); border-left: 4px solid #f38ba8; padding: 12px 15px; border-radius: 6px; color: #f38ba8; display: flex; flex-direction: column; gap: 8px;">
                 <div style="font-weight: bold; font-size: 1.1em; display: flex; align-items: center; gap: 8px;">
@@ -34,7 +32,6 @@
             </div>
         </div>
 
-        <!-- 使用说明书 -->
         <div class="settings_section" style="margin-bottom: 15px;">
             <details style="background: rgba(137, 180, 250, 0.08); border: 1px solid rgba(137, 180, 250, 0.4); padding: 10px 15px; border-radius: 8px;">
                 <summary style="color: #89b4fa; font-weight: bold; cursor: pointer; outline: none; user-select: none; font-size: 1.05em; display: flex; align-items: center; gap: 5px;">
@@ -42,27 +39,36 @@
                 </summary>
                 <div style="margin-top: 15px; font-size: 0.9em; line-height: 1.6; color: var(--SmartThemeBodyColor);">
                     <h4 style="margin: 0 0 5px 0; color: #cba6f7;"><i class="fa-solid fa-bookmark"></i> 1. 基础收藏与长图、导回</h4>
-                    <p style="margin: 0 0 15px 0; opacity: 0.9;">点击桌面悬浮球，可以<b>快速收藏</b>当前最新楼层，或输入指定楼层号收藏（同一楼层所有左右滑动的版本会被一起打包）。在【浏览所有收藏】中，您可以为喜欢的句子生成精美的卡片长图，也可以将精彩语录<b>完美导回</b>现在的聊天中（支持作为新消息追加、隐藏塞入历史楼层、甚至强行插队）。</p>
+                    <p style="margin: 0 0 15px 0; opacity: 0.9;">点击桌面悬浮球，可以<b>快速收藏</b>当前最新楼层，或输入指定楼层号收藏。您可以为喜欢的句子生成精美的卡片长图，也可以将精彩语录<b>完美导回</b>现在的聊天中。</p>
                     
                     <h4 style="margin: 0 0 5px 0; color: #a6e3a1;"><i class="fa-solid fa-crosshairs"></i> 2. 标签提取 (只留精华)</h4>
-                    <p style="margin: 0 0 15px 0; opacity: 0.9;">如果您只想要文本里的特定部分，可在下方“提取标签”填入如 <code>scene, rp</code>。收藏时系统将<b>仅保留</b>该标签内部的内容，强行丢弃外围的所有废话。</p>
+                    <p style="margin: 0 0 15px 0; opacity: 0.9;">如果您只想要文本里的特定部分，可在下方“提取标签”填入如 <code>scene, rp</code>。收藏时系统将<b>仅保留</b>该标签内部的内容。</p>
 
                     <h4 style="margin: 0 0 5px 0; color: #f9e2af;"><i class="fa-solid fa-scissors"></i> 3. 标签过滤 (剔除糟粕)</h4>
-                    <p style="margin: 0 0 15px 0; opacity: 0.9;">不想保存冗长的 AI 思考过程？在“过滤标签”填入 <code>think</code>，收藏时会自动把思考链删得一干二净。如果勾选了“暴力过滤”，即便遇到 AI 没写完结束标签 <code>&lt;/think&gt;</code> 的烂尾情况，也会直接抹除后续所有字符，彻底防截断。</p>
+                    <p style="margin: 0 0 15px 0; opacity: 0.9;">不想保存冗长的 AI 思考过程？在“过滤标签”填入 <code>think</code>，收藏时会自动把思考链删得一干二净。如果勾选了“暴力过滤”，即便遇到 AI 没写完结束标签的情况，也会直接抹除后续所有字符，彻底防截断。</p>
 
                     <h4 style="margin: 0 0 5px 0; color: #f38ba8;"><i class="fa-solid fa-wand-magic-sparkles"></i> 4. 智能扫描与历史大扫除</h4>
-                    <p style="margin: 0 0 5px 0; opacity: 0.9;">AI 偶尔会输出诸如 <code>&lt;!-- Digest:BEGIN --&gt;</code> 的幽灵注释，积少成多会拖慢酒馆速度。点击下方<b>【智能分析】</b>，它会自动揪出所有隐藏注释和标签，让你一键添加过滤规则。随后点击<b>【瘦身大扫除】</b>，即可将以往旧收藏里积攒的这类垃圾彻底净化清除！</p>
+                    <p style="margin: 0 0 5px 0; opacity: 0.9;">AI 偶尔会输出诸如 <code>&lt;!-- Digest:BEGIN --&gt;</code> 的幽灵注释，积少成多会拖慢酒馆速度。点击下方<b>【智能分析】</b>，它会自动揪出所有隐藏注释和标签，让你一键添加过滤规则。随后点击<b>【瘦身大扫除】</b>，即可将这类垃圾彻底净化清除！</p>
                 </div>
             </details>
         </div>
 
         <hr class="sysHR" />
         
-        <!-- 提取标签设置 -->
+        <!-- 【新增】：思维链专属分离标签 -->
         <div class="settings_section">
-            <label for="bkm-setting-extract-tags" style="color: #cba6f7; font-weight: bold;">🎯 需要提取的标签 (英文逗号分隔)：</label>
+            <label for="bkm-setting-reasoning-tags" style="color: #cba6f7; font-weight: bold;">🧠 识别并分离的思维链标签 (英文逗号分隔)：</label>
             <div style="font-size: 0.85em; color: #a6adc8; margin-bottom: 5px;">
-                开启后，将<b>仅保存</b>这些标签内的内容（留空则关闭）。如果同时设置了过滤，会先提取、再过滤嵌套内容。
+                自动把这些标签内的内容（或酒馆原生自带的思维链）提取出来，作为独立的“思考过程”独立显示在正文上方。<br><b>建议：</b>如果希望正文里不再重复显示，请在下方的“过滤标签”里也填上它们。
+            </div>
+            <input type="text" id="bkm-setting-reasoning-tags" class="text_pole" placeholder="例如: think, thinking">
+        </div>
+
+        <!-- 提取标签设置 -->
+        <div class="settings_section" style="margin-top: 15px;">
+            <label for="bkm-setting-extract-tags" style="color: #a6e3a1; font-weight: bold;">🎯 需要提取的正文标签 (英文逗号分隔)：</label>
+            <div style="font-size: 0.85em; color: #a6adc8; margin-bottom: 5px;">
+                开启后，将<b>仅保存</b>这些标签内的内容（留空则关闭）。
             </div>
             <input type="text" id="bkm-setting-extract-tags" class="text_pole" placeholder="例如: scene, rp">
         </div>
@@ -97,7 +103,6 @@
             </small>
         </div>
 
-        <!-- 可视化智能过滤 -->
         <div class="settings_section" style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
             <div id="bkm-btn-visual-filter" class="menu_button" style="margin: 0; width: 100%; box-sizing: border-box; padding: 10px; text-align: center; white-space: nowrap; border-color: #f38ba8; color: #f38ba8;">
                 🔍 智能分析与一键添加过滤规则
@@ -107,7 +112,6 @@
             </small>
         </div>
         
-        <!-- 重置悬浮窗位置 -->
         <div class="settings_section" style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
             <div id="bkm-btn-reset-fab" class="menu_button" style="margin: 0; width: 100%; box-sizing: border-box; padding: 10px; text-align: center; white-space: nowrap; border-color: #89b4fa; color: #89b4fa;">
                 🔄 重置悬浮球位置

@@ -4,7 +4,8 @@ const { eventSource, event_types, extensionSettings, SlashCommandParser, SlashCo
 const MODULE_NAME = 'global_bookmarks_pro';
 const defaultSettings = {
     showFloatingButton: true,
-    fabIcon: '', // 新增：保存自定义图标/图片链接
+    fabIcon: '', 
+    reasoningTags: 'think, thinking', // 新增：用于识别思维链的标签
     filterTags: '',
     extractTags: '', 
     removeBeforeClosing: true,
@@ -19,10 +20,7 @@ function escapeHtml(text) {
 }
 
 function getRealCharName(msg) {
-    // 优先返回消息里保存的名字（酒馆切换Persona发消息时会记录当时的 msg.name）
     if (msg.name && msg.name !== 'SillyTavern System') return msg.name;
-    
-    // 如果没有自带名字，再兜底使用当前的上下文名字
     if (msg.is_user) return context.name1 || 'User';
     return context.name2 || 'AI';
 }
@@ -150,27 +148,23 @@ function loadSettings() {
     }
 }
 
-// 【新增】：根据设置更新悬浮球外观的函数
 function updateFABIcon() {
     const fab = $('#bkm-fab-container');
     if (fab.length === 0) return;
     
     const iconVal = (extensionSettings[MODULE_NAME].fabIcon || '').trim();
     
-    // 清除上一次可能残留的背景图片样式
     fab.css({
         'background-image': 'none',
         'background-size': 'auto',
         'background-position': 'auto',
         'background-repeat': 'auto',
-        'overflow': 'hidden' // 确保图片贴合圆角
+        'overflow': 'hidden' 
     });
 
     if (!iconVal) {
-        // 如果留空，恢复默认的星星图标
         fab.html('<i class="fa-solid fa-star"></i>');
     } else if (iconVal.startsWith('http') || iconVal.startsWith('data:image')) {
-        // 如果是图片链接，设为背景图片，并清空里面的文字
         fab.html('');
         fab.css({
             'background-image': `url("${iconVal}")`,
@@ -179,7 +173,6 @@ function updateFABIcon() {
             'background-repeat': 'no-repeat'
         });
     } else {
-        // 如果是 Emoji 或其他文字
         fab.html(escapeHtml(iconVal));
     }
 }
@@ -215,18 +208,25 @@ async function restoreBookmarkToChat(bm) {
         const isUser = (bm.role || "").toLowerCase() === 'user' || bm.role === (context.name1 || "User");
         const bmCharName = isUser ? context.name1 : (bm.char || "AI");
 
-        const createStandardMsg = () => ({
-            name: bmCharName,
-            is_user: isUser,
-            is_name: !isUser,
-            is_system: false,
-            send_date: Date.now(),
-            mes: safeText,
-            extra: {},
-            swipes: [safeText],
-            swipe_id: 0,
-            swipe_info:[{ send_date: Date.now(), extra: { bookmark_restored: true } }]
-        });
+        const createStandardMsg = () => {
+            let msgObj = {
+                name: bmCharName,
+                is_user: isUser,
+                is_name: !isUser,
+                is_system: false,
+                send_date: Date.now(),
+                mes: safeText,
+                extra: {},
+                swipes: [safeText],
+                swipe_id: 0,
+                swipe_info:[{ send_date: Date.now(), extra: { bookmark_restored: true } }]
+            };
+            if (bm.reasoning) {
+                msgObj.extra.reasoning = bm.reasoning;
+                msgObj.swipe_info[0].extra.reasoning = bm.reasoning;
+            }
+            return msgObj;
+        };
 
         const appendNewMessage = async () => {
             const newMsg = createStandardMsg();
@@ -245,16 +245,20 @@ async function restoreBookmarkToChat(bm) {
 
             if (!targetMsg.swipes || targetMsg.swipes.length === 0) {
                 targetMsg.swipes = [targetMsg.mes || ""];
-                targetMsg.swipe_info = [targetMsg.extra || {}];
+                targetMsg.swipe_info =[targetMsg.extra || {}];
                 targetMsg.swipe_id = 0;
             }
 
             targetMsg.swipes.push(safeText);
-            targetMsg.swipe_info.push({ send_date: Date.now(), extra: { bookmark_restored: true } });
+            let swipeExtra = { bookmark_restored: true };
+            if (bm.reasoning) swipeExtra.reasoning = bm.reasoning;
+            targetMsg.swipe_info.push({ send_date: Date.now(), extra: swipeExtra });
             
             if (switchToIt) {
                 targetMsg.swipe_id = targetMsg.swipes.length - 1;
                 targetMsg.mes = safeText;
+                if (!targetMsg.extra) targetMsg.extra = {};
+                if (bm.reasoning) targetMsg.extra.reasoning = bm.reasoning;
             }
 
             if (typeof context.saveChat === 'function') await context.saveChat();
@@ -356,7 +360,7 @@ async function takeScreenshot(bm) {
 
     toastr.info("📸 正在施展换装魔法...");
 
-    const safeText = bm.text || "*(内容丢失)*";
+    const safeText = bm.text || "";
     const formattedText = getRenderedHtml(safeText); 
     const initialChar = bm.char ? bm.char.charAt(0).toUpperCase() : 'A';
     
@@ -369,6 +373,18 @@ async function takeScreenshot(bm) {
     else if (selectedStyle === 'ocean') { cssWrapper = 'background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);'; cssCard = 'background: rgba(255, 255, 255, 0.7); border-radius: 20px; padding: 30px; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15); border: 1px solid rgba(255, 255, 255, 0.4);'; cssAvatar = 'background: #ffffff; color: #4facfe; border-radius: 30%; box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);'; cssName = 'color: #2c3e50; font-weight: bold; font-size: 1.3em;'; cssTime = 'color: #5d6d7e;'; cssText = 'color: #34495e; font-size: 1.1em; line-height: 1.7;'; cssDivider = 'border-bottom: 1px solid rgba(255,255,255,0.6);'; } 
     else if (selectedStyle === 'matcha') { cssWrapper = 'background: #e8f5e9;'; cssCard = 'background: #ffffff; border-radius: 12px; padding: 30px; box-shadow: 0 10px 15px rgba(46, 125, 50, 0.05); border-left: 8px solid #66bb6a;'; cssAvatar = 'background: #a5d6a7; color: #1b5e20; border-radius: 10px;'; cssName = 'color: #2e7d32; font-weight: bold; font-size: 1.25em;'; cssTime = 'color: #81c784;'; cssText = 'color: #388e3c; font-size: 1.05em; line-height: 1.8;'; cssDivider = 'border-bottom: 1px solid #c8e6c9;'; } 
     else if (selectedStyle === 'retro') { cssWrapper = 'background: linear-gradient(to top, #fbc2eb 0%, #a6c1ee 100%);'; cssCard = 'background: #ffffff; border-radius: 0; padding: 30px; border: 3px solid #000000; box-shadow: 8px 8px 0px #ff90e8;'; cssAvatar = 'background: #ffff00; color: #000; border-radius: 0; border: 2px solid #000; box-shadow: 3px 3px 0px #000; font-weight:900;'; cssName = 'color: #000000; font-weight: 900; font-size: 1.4em; text-transform: uppercase; letter-spacing: 1px;'; cssTime = 'color: #666; font-weight: bold;'; cssText = 'color: #000000; font-size: 1.1em; line-height: 1.6; font-weight: 500;'; cssDivider = 'border-bottom: 3px solid #000;'; }
+
+    let reasoningHtml = '';
+    if (bm.reasoning) {
+        let rBorder = selectedStyle === 'cyber' ? '#00ff00' : (selectedStyle === 'cute' ? '#ffb6c1' : '#cba6f7');
+        let rBg = selectedStyle === 'cyber' ? 'rgba(0,255,0,0.05)' : (selectedStyle === 'cute' ? 'rgba(255,182,193,0.1)' : 'rgba(203, 166, 247, 0.1)');
+        let rColor = selectedStyle === 'cyber' ? '#00cc00' : (selectedStyle === 'cute' ? '#d81b60' : 'inherit');
+        
+        reasoningHtml = `<div style="margin-bottom: 15px; border-left: 4px solid ${rBorder}; background: ${rBg}; padding: 12px 15px; border-radius: 6px; font-size: 0.9em; opacity: 0.9; color: ${rColor}; text-align: left;">
+            <div style="font-weight: bold; margin-bottom: 5px; opacity: 0.8;">🧠 思维链:</div>
+            <div style="white-space: pre-wrap; font-family: monospace;">${escapeHtml(bm.reasoning)}</div>
+        </div>`;
+    }
 
     const container = document.createElement('div');
     container.style.cssText = `position:fixed; top:-9999px; left:0; width:650px; z-index:-9999; box-sizing:border-box; text-align: left; padding: 40px; ${cssWrapper}`;
@@ -384,9 +400,10 @@ async function takeScreenshot(bm) {
                     <div style="font-size: 0.85em; margin-top: 5px; ${cssTime}">${selectedStyle === 'cyber' ? '> SYS.TIME: ' : (selectedStyle === 'cute' ? '🎀 ' : '🕒 ')}${escapeHtml(bm.time)} | ${selectedStyle === 'cyber' ? 'FLOOR_ID:' : '💬 第'} ${bm.floor !== undefined ? bm.floor : '?'} ${selectedStyle === 'cyber' ? '' : '楼'}</div>
                 </div>
             </div>
-            <div class="mes_text bkm-rendered-text" style="${cssText} word-wrap: break-word; text-align: justify !important;">
+            ${reasoningHtml}
+            ${formattedText ? `<div class="mes_text bkm-rendered-text" style="${cssText} word-wrap: break-word; text-align: justify !important;">
                 ${formattedText}
-            </div>
+            </div>` : ''}
             ${selectedStyle === 'cyber' ? '<div style="color:#00ff00; font-family:monospace; margin-top:20px;">> EOF_</div>' : ''}
         </div>
     `;
@@ -432,6 +449,23 @@ async function takeScreenshot(bm) {
 async function doSaveMessage(text, msg, mesId, currentChatId) {
     const settings = extensionSettings[MODULE_NAME];
 
+    // 分离思维链
+    let reasoning = "";
+    if (msg && msg.extra && msg.extra.reasoning) {
+        reasoning += msg.extra.reasoning + "\n\n";
+    }
+    const rTags = (settings.reasoningTags || "think, thinking").split(',').map(t => t.trim()).filter(t => t);
+    rTags.forEach(tag => {
+        try {
+            const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                if (match[1]) reasoning += match[1].trim() + "\n\n";
+            }
+        } catch (e) { }
+    });
+    reasoning = reasoning.trim();
+
     if (settings.extractTags && settings.extractTags.trim() !== "") {
         const extracted = applyTagExtraction(text);
         if (extracted === "") {
@@ -445,10 +479,10 @@ async function doSaveMessage(text, msg, mesId, currentChatId) {
         text = applyTagFilter(text);
     }
     
-    if (!text || text.trim() === "") return toastr.warning("消息为空或已被完全过滤/提取失败，无实际内容可收藏。");
+    if ((!text || text.trim() === "") && reasoning === "") return toastr.warning("消息为空或已被完全过滤/提取失败，无实际内容可收藏。");
 
     const isDuplicate = extensionSettings[MODULE_NAME].bookmarks.some(b => 
-        b.text === text && b.chatId === currentChatId && b.floor === mesId
+        b.text === text && b.chatId === currentChatId && b.floor === mesId && (b.reasoning || "") === reasoning
     );
     if (isDuplicate) {
         return toastr.warning("⚠️ 这条消息您已经收藏过了哦！");
@@ -459,6 +493,7 @@ async function doSaveMessage(text, msg, mesId, currentChatId) {
         char: getRealCharName(msg), 
         role: msg.is_user ? 'User' : 'AI', 
         text: text, 
+        reasoning: reasoning,
         floor: mesId, 
         chatId: currentChatId 
     });
@@ -499,9 +534,10 @@ async function showBookmarksUI(bms, titleStr) {
     groupedBookmarks.forEach((group, gIndex) => {
         const floorText = group.floor !== undefined ? `第 ${group.floor} 楼` : `未知楼层`;
         const total = group.items.length;
-        const firstText = applyTagFilter(group.items[0].text || "*(内容丢失)*");
+        const firstText = applyTagFilter(group.items[0].text || "");
         let previewText = escapeHtml(firstText.replace(/\n/g, ' ').substring(0, 35));
         if (firstText.length > 35) previewText += '...';
+        if (!previewText && group.items[0].reasoning) previewText = "[思维链]";
 
         htmlContent += `
         <div class="bkm-group-card">
@@ -534,8 +570,17 @@ async function showBookmarksUI(bms, titleStr) {
                     <div class="bkm-swipe-content-wrapper">`;
         
         group.items.forEach((item, iIndex) => {
-            const safeItemText = item.text || "*(内容丢失)*";
-            const formattedText = getRenderedHtml(safeItemText);
+            const safeItemText = item.text || "";
+            const displayMes = safeItemText || (item.reasoning ? "" : "*(内容丢失)*");
+            const formattedText = getRenderedHtml(displayMes);
+            
+            let reasoningHtml = "";
+            if (item.reasoning) {
+                reasoningHtml = `<details class="bkm-reasoning-details" open style="margin-bottom: 12px; border-left: 4px solid #cba6f7; background: rgba(203, 166, 247, 0.1); padding: 10px 12px; border-radius: 4px; border-top-right-radius: 8px; border-bottom-right-radius: 8px;">
+                    <summary style="color: #cba6f7; font-weight: bold; cursor: pointer; user-select: none; outline: none; margin-bottom: 5px;">🧠 思维链 (点击折叠)</summary>
+                    <div style="white-space: pre-wrap; font-family: monospace; font-size: 0.9em; color: var(--SmartThemeBodyColor); opacity: 0.85; border-top: 1px dashed rgba(203, 166, 247, 0.3); padding-top: 8px;">${escapeHtml(item.reasoning)}</div>
+                </details>`;
+            }
             
             htmlContent += `
                         <div id="bkm-content-${gIndex}-${iIndex}" style="display: ${iIndex === 0 ? 'block' : 'none'};">
@@ -546,7 +591,8 @@ async function showBookmarksUI(bms, titleStr) {
                                     <button class="bkm-icon-btn shot bkm-shot-btn" data-gindex="${gIndex}" data-iindex="${iIndex}"><i class="fa-solid fa-image"></i> 长图</button>
                                 </div>
                             </div>
-                            <div class="mes_text bkm-rendered-text">${formattedText}</div>
+                            ${reasoningHtml}
+                            ${displayMes ? `<div class="mes_text bkm-rendered-text">${formattedText}</div>` : ''}
                         </div>`;
         });
         
@@ -574,6 +620,7 @@ async function showBookmarksUI(bms, titleStr) {
                 const safeText = applyTagFilter(state.items[state.current].text || "");
                 let preview = escapeHtml(safeText.replace(/\n/g, ' ').substring(0, 35));
                 if (safeText.length > 35) preview += '...';
+                if (!preview && state.items[state.current].reasoning) preview = "[思维链]";
                 $(`#bkm-preview-${gIndex}`).text(preview);
             });
 
@@ -590,6 +637,14 @@ async function showMultiSelectUI(items, config) {
     
     items.forEach((item, index) => {
         const formattedFullText = getRenderedHtml(item.fullText || item.label);
+        let detailsHtml = "";
+        if (item.reasoning) {
+            detailsHtml += `<div style="color: #cba6f7; font-size: 0.9em; font-family: monospace; white-space: pre-wrap; margin-bottom: 8px; border-left: 2px solid #cba6f7; padding-left: 8px;">[思维链] ${escapeHtml(item.reasoning)}</div>`;
+        }
+        if (formattedFullText) {
+            detailsHtml += `<div class="mes_text bkm-rendered-text" style="margin-top: 8px; white-space: normal; word-break: break-all;">${formattedFullText}</div>`;
+        }
+
         htmlContent += `
         <div class="bkm-group-card" style="padding:12px; width: 100%; box-sizing: border-box; display: block; flex-shrink: 0;">
             <div style="display:flex; align-items:flex-start; gap: 10px; width: 100%;">
@@ -598,7 +653,7 @@ async function showMultiSelectUI(items, config) {
             </div>
             <details class="bkm-details" style="margin-top: 8px; margin-left: 0px; padding-left: 30px; box-sizing: border-box; width: 100%;">
                 <summary style="font-size: 0.85em; color: var(--SmartThemeQuoteColor); text-align: left;">(点击展开完整内容)</summary>
-                <div class="mes_text bkm-rendered-text" style="margin-top: 8px; white-space: normal; word-break: break-all;">${formattedFullText}</div>
+                ${detailsHtml}
             </details>
         </div>`;
     });
@@ -638,7 +693,10 @@ function generateTxtContent(bms) {
     const sortedBms =[...bms].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
     sortedBms.forEach((bm, i) => { 
         const filteredText = applyTagFilter(bm.text || "");
-        txt += `[#${i+1}] 剧本: ${bm.char || "未知"} | 发送者: ${bm.role || "未知"} | 楼层: ${bm.floor !== undefined ? bm.floor : '未知'} | 时间: ${bm.time || "未知"}\n${filteredText}\n--------------------------------------------------\n\n`; 
+        txt += `[#${i+1}] 剧本: ${bm.char || "未知"} | 发送者: ${bm.role || "未知"} | 楼层: ${bm.floor !== undefined ? bm.floor : '未知'} | 时间: ${bm.time || "未知"}\n`; 
+        if (bm.reasoning) txt += `\n【思考过程】\n${bm.reasoning}\n`;
+        if (filteredText) txt += `\n【正文内容】\n${filteredText}\n`;
+        txt += `\n--------------------------------------------------\n\n`; 
     });
     return txt;
 }
@@ -715,19 +773,21 @@ async function openMainMenu() {
 
                 endFloor = Math.min(endFloor, context.chat.length - 1);
 
-                let allSwipeItems = [];
+                let allSwipeItems =[];
                 for (let f = startFloor; f <= endFloor; f++) {
                     const targetMsg = context.chat[f];
                     if (!targetMsg) continue;
                     
-                    const swipes = (targetMsg.swipes && targetMsg.swipes.length > 0) ? targetMsg.swipes : [targetMsg.mes];
+                    const swipes = (targetMsg.swipes && targetMsg.swipes.length > 0) ? targetMsg.swipes :[targetMsg.mes];
                     const rChar = getRealCharName(targetMsg);
                     const role = targetMsg.is_user ? 'User' : 'AI';
                     
                     swipes.forEach((swText, index) => {
                         let swipeTime = targetMsg.send_date ? new Date(targetMsg.send_date).toLocaleString() : new Date().toLocaleString();
+                        let swipeExtra = targetMsg.extra || {};
                         if (targetMsg.swipe_info && targetMsg.swipe_info[index] && targetMsg.swipe_info[index].send_date) {
                             swipeTime = new Date(targetMsg.swipe_info[index].send_date).toLocaleString();
+                            swipeExtra = targetMsg.swipe_info[index].extra || swipeExtra;
                         }
                         
                         allSwipeItems.push({
@@ -736,7 +796,8 @@ async function openMainMenu() {
                             time: swipeTime,
                             role: role,
                             floor: f,
-                            chatId: context.getCurrentChatId()
+                            chatId: context.getCurrentChatId(),
+                            reasoning: swipeExtra.reasoning || undefined
                         });
                     });
                 }
@@ -753,7 +814,7 @@ async function openMainMenu() {
             case 17:
                 const keyword = await context.callGenericPopup("请输入搜索关键字：", context.POPUP_TYPE.INPUT, "", { cancelButton: "取消" });
                 if (!keyword || !keyword.trim()) break;
-                const filtered = allBms.filter(b => (b.char && b.char.includes(keyword)) || (b.text && b.text.includes(keyword)));
+                const filtered = allBms.filter(b => (b.char && b.char.includes(keyword)) || (b.text && b.text.includes(keyword)) || (b.reasoning && b.reasoning.includes(keyword)));
                 await showBookmarksUI([...filtered], `搜索结果: "${keyword}"`);
                 break;
                 
@@ -791,11 +852,16 @@ async function openMainMenu() {
                 
             case 18:
                 if (allBms.length === 0) { toastr.info("收藏夹为空。"); break; }
-                const itemsToDelete =[...allBms].reverse().map((bm, i) => ({ 
-                    label: `[${escapeHtml(bm.char)} - 第${bm.floor}楼] ${escapeHtml((bm.text || "").substring(0, 25))}...`, 
-                    value: allBms.length - 1 - i, 
-                    fullText: bm.text 
-                }));
+                const itemsToDelete =[...allBms].reverse().map((bm, i) => {
+                    const safeText = bm.text || "";
+                    const previewText = safeText ? `${escapeHtml(safeText.substring(0, 25))}...` : '[思维链]...';
+                    return { 
+                        label: `[${escapeHtml(bm.char)} - 第${bm.floor}楼] ${previewText}`, 
+                        value: allBms.length - 1 - i, 
+                        fullText: bm.text,
+                        reasoning: bm.reasoning 
+                    };
+                });
                 const indicesToDelete = await showMultiSelectUI(itemsToDelete, { title: '🗑️ 勾选要删除的收藏', okButtonText: '永久删除', color: '#ff6666' });
                 if (indicesToDelete && indicesToDelete.length > 0) {
                     indicesToDelete.sort((a, b) => b - a).forEach(idx => allBms.splice(idx, 1));
@@ -842,7 +908,10 @@ async function openMainMenu() {
                         if (isNaN(start) || isNaN(end) || start > end || start < 1 || end > reversedBms.length) { toastr.error("范围无效！"); continue; }
                         bmsToExport = reversedBms.slice(start - 1, end);
                     } else if (exportTypeChoice === 5) {
-                        const selectedIndices = await showMultiSelectUI(allBms.map((bm, i) => ({ label: `[${escapeHtml(bm.char)}] ${escapeHtml(applyTagFilter(bm.text).substring(0,25))}...`, value: i, fullText: applyTagFilter(bm.text) })), { title: '☑️ 请勾选要导出的收藏', okButtonText: '导出选中项' });
+                        const selectedIndices = await showMultiSelectUI(allBms.map((bm, i) => {
+                            const preText = applyTagFilter(bm.text || "");
+                            return { label: `[${escapeHtml(bm.char)}] ${escapeHtml(preText ? preText.substring(0,25) + '...' : '[思维链]')}`, value: i, fullText: preText, reasoning: bm.reasoning };
+                        }), { title: '☑️ 请勾选要导出的收藏', okButtonText: '导出选中项' });
                         if (selectedIndices) bmsToExport = selectedIndices.map(idx => allBms[idx]);
                     } else if (exportTypeChoice === 2 || exportTypeChoice === 3) {
                         const isChar = exportTypeChoice === 2;
@@ -886,10 +955,17 @@ async function openMainMenu() {
                         extensionSettings[MODULE_NAME].bookmarks = newBookmarks;
                         toastr.success(`💥 [${importType}] 覆盖成功！已导入 ${newBookmarks.length} 条。`);
                     } else {
-                        const existingTexts = new Set(extensionSettings[MODULE_NAME].bookmarks.map(b => b.text));
+                        const existingTexts = new Set(extensionSettings[MODULE_NAME].bookmarks.map(b => (b.text || "") + (b.reasoning || "")));
                         let addedCount = 0;
-                        newBookmarks.forEach(newItem => { if (newItem.text && !existingTexts.has(newItem.text)) { extensionSettings[MODULE_NAME].bookmarks.push(newItem); existingTexts.add(newItem.text); addedCount++; } });
-                        toastr.success(`🤝 [${importType}] 合并完成！新增了 ${addedCount} 条记录。`);
+                        newBookmarks.forEach(newItem => { 
+                            const combo = (newItem.text || "") + (newItem.reasoning || "");
+                            if (combo && !existingTexts.has(combo)) { 
+                                extensionSettings[MODULE_NAME].bookmarks.push(newItem); 
+                                existingTexts.add(combo); 
+                                addedCount++; 
+                            } 
+                        });
+                        toastr.success(`🤝[${importType}] 合并完成！新增了 ${addedCount} 条记录。`);
                     }
                     context.saveSettingsDebounced();
                 };
@@ -969,11 +1045,15 @@ async function initUI() {
                     extensionSettings[MODULE_NAME].showFloatingButton = $(e.target).prop('checked'); context.saveSettingsDebounced(); toggleFAB();
                 });
 
-                // 【新增】：监听并实时渲染悬浮球图标
                 $('#bkm-setting-fab-icon').val(extensionSettings[MODULE_NAME].fabIcon || "").on('input', (e) => {
                     extensionSettings[MODULE_NAME].fabIcon = $(e.target).val(); 
                     context.saveSettingsDebounced();
-                    updateFABIcon(); // 触发即时更新
+                    updateFABIcon(); 
+                });
+
+                // 【新增】：监听思维链分离标签输入
+                $('#bkm-setting-reasoning-tags').val(extensionSettings[MODULE_NAME].reasoningTags || "think, thinking").on('input', (e) => {
+                    extensionSettings[MODULE_NAME].reasoningTags = $(e.target).val(); context.saveSettingsDebounced();
                 });
 
                 $('#bkm-setting-filter-tags').val(extensionSettings[MODULE_NAME].filterTags).on('input', (e) => {
@@ -1040,7 +1120,7 @@ async function initUI() {
                     let pairedComments = [];
                     let standaloneComments =[];
                     let usedComments = new Set();
-                    const endWords = ['END', 'STOP', '封存', '关闭', '结束'];
+                    const endWords =['END', 'STOP', '封存', '关闭', '结束'];
 
                     foundComments.forEach(c1 => {
                         if (usedComments.has(c1)) return;
@@ -1188,7 +1268,6 @@ async function initUI() {
         fab.css({ top: extensionSettings[MODULE_NAME].fabPosition.top, left: extensionSettings[MODULE_NAME].fabPosition.left });
         makeDraggable(fab);
         
-        // 【新增】：初始化完毕后，渲染一次图标
         updateFABIcon();
     }
     toggleFAB();
