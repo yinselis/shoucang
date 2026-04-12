@@ -1272,6 +1272,40 @@ async function initUI() {
     }
     toggleFAB();
 
+// ====================================================
+// 【新增】：在魔法棒（扩展菜单）中添加常驻入口 (完美复刻+动态主题颜色版)
+// ====================================================
+function injectBkmMenuButton(retry = 0) {
+    // 兼容电脑端和手机端的菜单容器 ID
+    const menuContainer = document.getElementById('extensions_menu') || document.getElementById('extensionsMenu');
+    
+    if (!menuContainer) { 
+        if (retry < 10) setTimeout(() => injectBkmMenuButton(retry + 1), 1000); 
+        return; 
+    }
+    
+    if (document.getElementById('bkm-wand-menu-btn')) return;
+
+    // 纯净 HTML 结构，完全继承酒馆当前主题颜色
+    const btnHtml = `
+        <div id="bkm-wand-menu-btn" class="list-group-item flex-container flexGap5 interactable" tabindex="0" role="button">
+            <div class="extension_menu_item_icon"><i class="fa-solid fa-star fa-fw"></i></div>
+            <div class="extension_menu_item_name">全局收藏夹 Pro</div>
+        </div>
+    `;
+    
+    menuContainer.insertAdjacentHTML('beforeend', btnHtml);
+    
+    $('#bkm-wand-menu-btn').on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openMainMenu(); 
+        $('#extensions_popup').hide(); 
+    });
+}
+
+setTimeout(() => injectBkmMenuButton(), 1500);
+// ====================================================
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({ name: 'bkm_latest', callback: async () => { await quickSaveLatest(); return ""; }, returns: '无返回值', helpString: '快速收藏最新消息' }));
 }
 
