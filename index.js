@@ -449,12 +449,18 @@ async function takeScreenshot(bm) {
 async function doSaveMessage(text, msg, mesId, currentChatId) {
     const settings = extensionSettings[MODULE_NAME];
 
-    // 分离思维链
-    let reasoning = "";
+    // 分离思维链 (已修复过滤Bug)
+let reasoning = "";
+const rTags = (settings.reasoningTags || "think, thinking").split(',').map(t => t.trim()).filter(t => t);
+const fTags = (settings.filterTags || "").toLowerCase().split(',').map(t => t.trim()).filter(t => t);
+
+// 如果用户开启了过滤，并且过滤标签里包含了 think 或 thinking，则放弃提取思维链
+const shouldSkipReasoning = settings.filterOnSave && rTags.some(tag => fTags.includes(tag.toLowerCase()));
+
+if (!shouldSkipReasoning) {
     if (msg && msg.extra && msg.extra.reasoning) {
         reasoning += msg.extra.reasoning + "\n\n";
     }
-    const rTags = (settings.reasoningTags || "think, thinking").split(',').map(t => t.trim()).filter(t => t);
     rTags.forEach(tag => {
         try {
             const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
@@ -464,7 +470,8 @@ async function doSaveMessage(text, msg, mesId, currentChatId) {
             }
         } catch (e) { }
     });
-    reasoning = reasoning.trim();
+}
+reasoning = reasoning.trim();
 
     if (settings.extractTags && settings.extractTags.trim() !== "") {
         const extracted = applyTagExtraction(text);
@@ -1097,7 +1104,24 @@ async function initUI() {
                         toastr.success(`🧹 瘦身大扫除完成！共洗净了 ${cleanedCount} 条记录的冗余标签！`);
                     }
                 });
-
+$('#bkm-btn-clean-reasoning').on('click', async () => {
+    const bms = extensionSettings[MODULE_NAME].bookmarks;
+    if (!bms || bms.length === 0) return toastr.info("收藏夹为空，不需要清理。");
+    
+    const confirmRes = await context.callGenericPopup("确定要彻底删除所有现有收藏中的思维链内容吗？<br><br><span style='color:#ff6666;'>操作后，所有记录的 think 过程将被永久清除，无法恢复！</span>", context.POPUP_TYPE.CONFIRM, "", { okButton: "确定永久删除", cancelButton: "取消" });
+    
+    if (confirmRes === context.POPUP_RESULT.AFFIRMATIVE) {
+        let cleanedCount = 0;
+        bms.forEach(bm => {
+            if (bm.reasoning && bm.reasoning.trim() !== '') {
+                bm.reasoning = '';
+                cleanedCount++;
+            }
+        });
+        context.saveSettingsDebounced();
+        toastr.success(`🧠 思维链清理完成！共清除了 ${cleanedCount} 条记录的思维链！`);
+    }
+});
                 $('#bkm-btn-visual-filter').on('click', async () => {
                     const bms = extensionSettings[MODULE_NAME].bookmarks;
                     if (!bms || bms.length === 0) return toastr.warning("收藏夹是空的，请先收藏几条消息以便进行分析！");
