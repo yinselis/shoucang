@@ -104,39 +104,32 @@ function applyTagFilter(text) {
 
 function getRenderedHtml(text, forceOpen = false) {
     if (!text) return "";
-    
-    let magicBlocks =[];
     let tempText = text;
     const openAttr = forceOpen ? "open" : "";
     
-    tempText = tempText.replace(/<!--([\s\S]*?)-->/g, function(match, p1) {
-        magicBlocks.push(`&lt;!--${escapeHtml(p1)}--&gt;`);
-        return `MAGICBLOCKPLACEHOLDER${magicBlocks.length - 1}ENDPLACEHOLDER`;
-    });
-
+    // 1. 保护并美化 <think> 标签
     const tRegex = new RegExp('\\x3Cthink\\x3E([\\s\\S]*?)\\x3C/think\\x3E', 'gi');
     tempText = tempText.replace(tRegex, function(match, p1) {
-        magicBlocks.push(`<details ${openAttr} style="border-left: 4px solid #cba6f7; background: rgba(203, 166, 247, 0.15); padding: 8px 12px; margin: 10px 0; border-radius: 0 8px 8px 0; font-size: 0.95em; color: var(--SmartThemeBodyColor); opacity: 0.9; text-align: left; display: block;">
+        return `<details ${openAttr} style="border-left: 4px solid #cba6f7; background: rgba(203, 166, 247, 0.15); padding: 8px 12px; margin: 10px 0; border-radius: 0 8px 8px 0; font-size: 0.95em; color: var(--SmartThemeBodyColor); opacity: 0.9; text-align: left; display: block;">
 <summary style="color: #cba6f7; font-weight: bold; font-family: monospace; user-select: none; cursor: pointer; outline: none;">&lt;think&gt; (点击展开思考过程)</summary>
-<div style="margin-top: 8px; white-space: pre-wrap; font-family: inherit; border-top: 1px dashed rgba(203, 166, 247, 0.3); padding-top: 8px;">${escapeHtml(p1.trim())}</div></details>`);
-        return `MAGICBLOCKPLACEHOLDER${magicBlocks.length - 1}ENDPLACEHOLDER`;
+<div style="margin-top: 8px; white-space: pre-wrap; font-family: inherit; border-top: 1px dashed rgba(203, 166, 247, 0.3); padding-top: 8px;">${escapeHtml(p1.trim())}</div></details>`;
     });
 
-    let html = "";
-    if (typeof showdown !== 'undefined') {
-        const converter = new showdown.Converter({ simpleLineBreaks: true });
-        html = converter.makeHtml(tempText);
-    } else {
-        html = escapeHtml(tempText).replace(/\n/g, '<br>');
+    // 2. 核心修复：智能检测是不是复杂的 HTML 模板
+    const isHtmlTemplate = tempText.includes('<style') || (tempText.includes('<div') && tempText.includes('</div'));
+
+    if (isHtmlTemplate) {
+        // 如果检测到是 HTML 模板（如平安绘卷），绝对不能经过 Markdown！直接放行，让浏览器原汁原味渲染。
+        return tempText;
     }
 
-    magicBlocks.forEach((block, index) => {
-        let regexP = new RegExp(`<p>MAGICBLOCKPLACEHOLDER${index}ENDPLACEHOLDER<\\/p>`, 'g');
-        let regexRaw = new RegExp(`MAGICBLOCKPLACEHOLDER${index}ENDPLACEHOLDER`, 'g');
-        html = html.replace(regexP, block).replace(regexRaw, block);
-    });
-
-    return html;
+    // 3. 普通文本，走正常的 Markdown 渲染
+    if (typeof showdown !== 'undefined') {
+        const converter = new showdown.Converter({ simpleLineBreaks: true, strikethrough: true, tables: true });
+        return converter.makeHtml(tempText);
+    } else {
+        return tempText.replace(/\n/g, '<br>');
+    }
 }
 
 function loadSettings() {
@@ -591,11 +584,13 @@ async function showBookmarksUI(bms, titleStr) {
             
             htmlContent += `
                         <div id="bkm-content-${gIndex}-${iIndex}" style="display: ${iIndex === 0 ? 'block' : 'none'};">
-                            <div class="bkm-version-toolbar">
+                            <div class="bkm-version-toolbar" style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px;">
                                 <span class="bkm-version-label">当前版本：#${iIndex + 1}</span>
-                                <div class="bkm-btn-group">
-                                    <button class="bkm-icon-btn restore bkm-restore-btn" data-gindex="${gIndex}" data-iindex="${iIndex}"><i class="fa-solid fa-reply"></i> 导回</button>
-                                    <button class="bkm-icon-btn shot bkm-shot-btn" data-gindex="${gIndex}" data-iindex="${iIndex}"><i class="fa-solid fa-image"></i> 长图</button>
+                                <div class="bkm-btn-group" style="display: flex; flex-wrap: wrap; gap: 8px; width: 100%;">
+                                    <button class="bkm-icon-btn edit bkm-edit-btn" data-gindex="${gIndex}" data-iindex="${iIndex}" style="color: #89b4fa; border-color: #89b4fa; white-space: nowrap; flex: 1; justify-content: center;"><i class="fa-solid fa-pen-to-square"></i> 编辑</button>
+                                    <button class="bkm-icon-btn restore bkm-restore-btn" data-gindex="${gIndex}" data-iindex="${iIndex}" style="white-space: nowrap; flex: 1; justify-content: center;"><i class="fa-solid fa-reply"></i> 导回</button>
+                                    <button class="bkm-icon-btn shot bkm-shot-btn" data-gindex="${gIndex}" data-iindex="${iIndex}" style="white-space: nowrap; flex: 1; justify-content: center;"><i class="fa-solid fa-image"></i> 长图</button>
+                                    <button class="bkm-icon-btn delete bkm-delete-btn" data-gindex="${gIndex}" data-iindex="${iIndex}" style="color: #f38ba8; border-color: #f38ba8; white-space: nowrap; flex: 1; justify-content: center;"><i class="fa-solid fa-trash"></i> 删除</button>
                                 </div>
                             </div>
                             ${reasoningHtml}
@@ -633,6 +628,73 @@ async function showBookmarksUI(bms, titleStr) {
 
             $('.bkm-shot-btn').on('click', async function(e) { e.preventDefault(); e.stopPropagation(); await takeScreenshot(groupedBookmarks[$(this).data('gindex')].items[$(this).data('iindex')]); });
             $('.bkm-restore-btn').on('click', async function(e) { e.preventDefault(); e.stopPropagation(); await restoreBookmarkToChat(groupedBookmarks[$(this).data('gindex')].items[$(this).data('iindex')]); });
+            $('.bkm-edit-btn').on('click', async function(e) {
+                e.preventDefault(); e.stopPropagation();
+                const gIdx = $(this).data('gindex');
+                const iIdx = $(this).data('iindex');
+                const targetItem = groupedBookmarks[gIdx].items[iIdx];
+                
+                const editHtml = `
+                    <div class="bkm-list-container">
+                        <h3 class="bkm-title">✏️ 编辑收藏文本</h3>
+                        <textarea id="bkm-edit-textarea" style="width:100%; height:30vh; background:var(--SmartThemeBlurTintColor); color:var(--SmartThemeBodyColor); border:1px solid var(--SmartThemeBorderColor); border-radius:10px; padding:10px; box-sizing:border-box; outline:none; resize:vertical;">${escapeHtml(targetItem.text)}</textarea>
+                    </div>
+                `;
+                
+                let tempText = targetItem.text;
+                const confirmRes = await context.callGenericPopup(editHtml, context.POPUP_TYPE.TEXT, "", { 
+                    okButton: "保存修改", 
+                    cancelButton: "取消", 
+                    allowVerticalScrolling: true,
+                    onOpen: () => {
+                        // 核心修复：在弹窗打开时实时记录你的输入，防止弹窗关闭后数据丢失
+                        $('#bkm-edit-textarea').on('input', function() {
+                            tempText = $(this).val();
+                        });
+                    }
+                });
+                
+                if (confirmRes === context.POPUP_RESULT.AFFIRMATIVE) {
+                    const newText = tempText;
+                    targetItem.text = newText;
+                    context.saveSettingsDebounced();
+                    toastr.success("✅ 修改已保存！");
+                    
+                    // 核心修复：安全且强制地更新界面
+                    const formattedText = getRenderedHtml(newText);
+                    let container = $(`#bkm-content-${gIdx}-${iIdx}`);
+                    let textDiv = container.find('.bkm-rendered-text');
+                    
+                    // 如果原本没有文本框，需要新建一个
+                    if (textDiv.length === 0) {
+                        container.append(`<div class="mes_text bkm-rendered-text" style="font-size: 1em; line-height: 1.6; color: var(--SmartThemeBodyColor); background: var(--SmartThemeButtonBackgroundColor); padding: 12px; border-radius: 8px; text-align: left !important; word-break: break-word;"></div>`);
+                        textDiv = container.find('.bkm-rendered-text');
+                    }
+                    
+                    textDiv.html(formattedText);
+                }
+            });
+            $('.bkm-delete-btn').on('click', async function(e) {
+    e.preventDefault(); e.stopPropagation();
+    const gIdx = $(this).data('gindex');
+    const iIdx = $(this).data('iindex');
+    const targetItem = groupedBookmarks[gIdx].items[iIdx];
+    
+    // 弹出二次确认框
+    const confirmRes = await context.callGenericPopup("确定要永久删除这条收藏吗？", context.POPUP_TYPE.CONFIRM, "", { okButton: "删除", cancelButton: "取消" });
+    
+    if (confirmRes === context.POPUP_RESULT.AFFIRMATIVE) {
+        const allBms = extensionSettings[MODULE_NAME].bookmarks;
+        const originalIndex = allBms.findIndex(b => b === targetItem);
+        if (originalIndex !== -1) {
+            allBms.splice(originalIndex, 1); // 从数组中删除
+            context.saveSettingsDebounced(); // 保存数据
+            toastr.success("🗑️ 删除成功！");
+            // 将原界面替换为删除提示，避免布局错乱
+            $(`#bkm-content-${gIdx}-${iIdx}`).html('<div style="padding:20px; text-align:center; color:#f38ba8; font-weight:bold;">🗑️ 该条记录已删除，重新打开菜单生效。</div>');
+        }
+    }
+});
         }
     });
 }
@@ -725,6 +787,10 @@ async function openMainMenu() {
                     <button id="btn-bkm-18" class="bkm-menu-btn" style="color:#f38ba8;"><i class="fa-solid fa-trash-can"></i> 管理与删除</button>
                     <button id="btn-bkm-13" class="bkm-menu-btn" style="color:#74c7ec;"><i class="fa-solid fa-file-export"></i> 导出与备份</button>
                     <button id="btn-bkm-15" class="bkm-menu-btn" style="color:#a6e3a1;"><i class="fa-solid fa-file-import"></i> 导入备份数据</button>
+<div style="border: 1px dashed #f38ba8; color: #f38ba8; border-radius: 12px; padding: 8px 2px; font-size: 0.8em; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: rgba(243, 139, 168, 0.05); pointer-events: none;">
+    <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.2em; margin-bottom: 4px;"></i>
+    <span style="line-height: 1.3;">Bug众多<br>操作前推荐先备份<br>数据丢了找不回来</span>
+</div>
                     
                     <button id="btn-bkm-19" class="bkm-menu-btn full-width"><i class="fa-solid fa-gear" style="color:#94e2d5;"></i> 标签过滤/提取 设置</button>
                 </div>
@@ -1332,6 +1398,31 @@ setTimeout(() => injectBkmMenuButton(), 1500);
 // ====================================================
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({ name: 'bkm_latest', callback: async () => { await quickSaveLatest(); return ""; }, returns: '无返回值', helpString: '快速收藏最新消息' }));
 }
+
+function addBookmarkButtonToMessage(mesId) {
+    const mesEl = $(`#chat .mes[mesid="${mesId}"]`);
+    // 检查是否已经添加过，避免重复
+    if (mesEl.find('.bkm-floor-save-btn').length === 0) {
+        // 在消息的操作按钮区添加星星
+        const btn = $(`<div class="mes_button bkm-floor-save-btn interactable" title="收藏此楼层"><i class="fa-solid fa-star" style="color: #f9e2af;"></i></div>`);
+        btn.on('click', async function() {
+            const msg = context.chat[mesId];
+            if (!msg) return toastr.error("找不到消息！");
+            const text = (msg.swipes && msg.swipes.length > 0) ? msg.swipes[msg.swipe_id || 0] : msg.mes;
+            await doSaveMessage(text, msg, mesId, context.getCurrentChatId());
+        });
+        mesEl.find('.mes_buttons').prepend(btn);
+    }
+}
+
+// 绑定到酒馆消息渲染事件
+eventSource.on(event_types.USER_MESSAGE_RENDERED, addBookmarkButtonToMessage);
+eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, addBookmarkButtonToMessage);
+eventSource.on(event_types.CHAT_CHANGED, () => {
+    setTimeout(() => {
+        $('#chat .mes').each(function() { addBookmarkButtonToMessage($(this).attr('mesid')); });
+    }, 500);
+});
 
 eventSource.on(event_types.APP_READY, initUI);
 
